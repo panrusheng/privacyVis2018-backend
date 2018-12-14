@@ -111,6 +111,19 @@
             <version>1.1.9</version>
         </dependency>
 
+        <dependency>
+            <groupId>eu.amidst</groupId>
+            <artifactId>core-dynamic</artifactId>
+            <version>0.7.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.51</version>
+        </dependency>
+
     </dependencies>
 
     <build>

@@ -22,14 +22,40 @@
  * THE SOFTWARE.
  */
 
-package tk.mybatis.springboot.mapper;
+package tk.mybatis.springboot.service;
 
-import tk.mybatis.springboot.model.UserInfo;
-import tk.mybatis.springboot.util.MyMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import tk.mybatis.springboot.mapper.UserMapper;
+import tk.mybatis.springboot.model.User;
+
+import java.util.List;
 
 /**
- * @author liuzh_3nofxnp
- * @since 2016-01-22 22:17
+ * @author liuzh
+ * @since 2015-12-19 11:09
  */
-public interface UserInfoMapper extends MyMapper<UserInfo> {
+@Service
+public class UserService {
+
+    @Autowired
+    private UserMapper UserMapper;
+
+    public List<User> getAll() {return UserMapper.selectAll();}
+
+    public User getById(Integer id) {
+        return UserMapper.selectByPrimaryKey(id);
+    }
+
+    public void deleteById(Integer id) {
+        UserMapper.deleteByPrimaryKey(id);
+    }
+
+    public void save(User user) {
+        if (user.getId() != null) {
+            UserMapper.updateByPrimaryKey(user);
+        } else {
+            UserMapper.insert(user);
+        }
+    }
 }
