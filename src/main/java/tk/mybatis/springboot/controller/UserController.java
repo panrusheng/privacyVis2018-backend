@@ -102,9 +102,9 @@ public class UserController {
         return User;
     }
 
-    @RequestMapping(value = "/testBayes")
-    public void testBayes(){
-        Bayes.test();
+    @RequestMapping(value = "/get_gbn")
+    public String get_gbn(){
+        return Bayes.getGBN();
     }
 
 //
