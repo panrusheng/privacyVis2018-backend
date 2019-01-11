@@ -2,10 +2,7 @@ package tk.mybatis.springboot.util.algorithm;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import eu.amidst.core.datastream.Attribute;
-import eu.amidst.core.datastream.DataInstance;
-import eu.amidst.core.datastream.DataOnMemory;
-import eu.amidst.core.datastream.DataStream;
+import eu.amidst.core.datastream.*;
 import eu.amidst.core.distribution.ConditionalDistribution;
 import eu.amidst.core.io.BayesianNetworkWriter;
 import eu.amidst.core.io.DataStreamLoader;
@@ -19,6 +16,7 @@ import eu.amidst.core.learning.parametric.ParameterLearningAlgorithm;
 
 import java.io.*;
 
+import java.text.DecimalFormat;
 import java.util.*;
 
 public class Bayes {
@@ -114,6 +112,7 @@ public class Bayes {
 //    }
     public static String getGBN(){
 
+        DecimalFormat df = new DecimalFormat("#0.00");
         DataStream<DataInstance> data = DataStreamLoader.open(root_path+"tk\\mybatis\\springboot\\data\\user.arff");
         ParameterLearningAlgorithm parameterLearningAlgorithm = new ParallelMaximumLikelihood();
 
@@ -167,7 +166,9 @@ public class Bayes {
             for(int j : attrList){//child node
                 if(j != i){
                     Variable childVar = modelHeader.getVariableById(j);
-                    //add single parent
+                    String childVarName = childVar.getName();
+                    String parentVarName = parentVar.getName();
+                    /* add single parent */
                     dag.getParentSet(childVar).addParent(parentVar);
 
                     parameterLearningAlgorithm.setDAG(dag);
@@ -188,21 +189,29 @@ public class Bayes {
                         String[] _probDistList = __probDistList.substring(2, __probDistList.length()-2).split(", ");
 //                        String condition = _condition.substring(1, _condition.length()-1);
                         for( int m = 0, len_m = _probDistList.length; m < len_m; m++ ){
-                            Double[] cpt = new Double[4]; //cpb = [ P(A), P(B), P(A|B), P(A|B') ]
-                            cpt[0] = probTable.get(childVar.getName())[m];
-                            cpt[1] = probTable.get(parentVar.getName())[k];
-                            cpt[2] = Double.valueOf(_probDistList[m]);
-                            cpt[3] = 0.0;
-                            int cpt3_n, cpt_3_d;
+                            Double[] cpt = new Double[4]; //cpt = [ P(A), P(B), P(A|B), P(A|B') ]
+                            cpt[0] = probTable.get(childVarName)[m]; //P(A)
+                            cpt[1] = probTable.get(parentVarName)[k]; //P(B)
+                            cpt[2] = Double.valueOf(_probDistList[m]); //P(A|B)
+                            cpt[3] = 0.0; //P(A|B'), placeholder
+                            double cpt3_n = 0.0, cpt3_d = 0.0;
                             for(Iterator<DataInstance> iter = data.iterator();iter.hasNext();){
-                                DataInstance tmp = iter.next();
-                                Attribute fue = tmp.getAttributes().getAttributeByName("res");
-                                System.out.println((int)tmp.getValue(fue));
+                                DataInstance record = iter.next();
+                                Attributes recordAttr = record.getAttributes();
+                                int childAttr = (int)record.getValue(recordAttr.getAttributeByName(childVarName));
+                                int parentAttr = (int)record.getValue(recordAttr.getAttributeByName(parentVarName));
+                                if(parentAttr != k){
+                                    cpt3_d++;
+                                    if(childAttr == m){
+                                        cpt3_n++;
+                                    }
+                                }
                             }
+                            cpt[3] = cpt3_n / cpt3_d;
 
                             JSONObject link = new JSONObject();
-                            link.put("source", EventNo.get(parentVar.getName())+k);
-                            link.put("target", EventNo.get(childVar.getName())+m);
+                            link.put("source", EventNo.get(parentVarName)+k);
+                            link.put("target", EventNo.get(childVarName)+m);
                             link.put("value", _probDistList[m]);
                             link.put("cpt", cpt);
                             linksList.add(link);
