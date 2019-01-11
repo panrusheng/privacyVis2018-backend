@@ -2,6 +2,7 @@ package tk.mybatis.springboot.util.algorithm;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import eu.amidst.core.datastream.Attribute;
 import eu.amidst.core.datastream.DataInstance;
 import eu.amidst.core.datastream.DataOnMemory;
 import eu.amidst.core.datastream.DataStream;
@@ -18,9 +19,7 @@ import eu.amidst.core.learning.parametric.ParameterLearningAlgorithm;
 
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class Bayes {
     private static String root_path = "C:\\Users\\Echizen\\Documents\\work\\privacyVis2018\\src\\main\\java\\";
@@ -117,6 +116,7 @@ public class Bayes {
 
         DataStream<DataInstance> data = DataStreamLoader.open(root_path+"tk\\mybatis\\springboot\\data\\user.arff");
         ParameterLearningAlgorithm parameterLearningAlgorithm = new ParallelMaximumLikelihood();
+
         Variables modelHeader = new Variables(data.getAttributes());
         DAG dag = new DAG(modelHeader);
 
@@ -124,15 +124,47 @@ public class Bayes {
         JSONObject gbn = new JSONObject();
         JSONArray nodesList = new JSONArray();
         JSONArray linksList = new JSONArray();
-        for(int i : attrList){
-            Variable parentVar = modelHeader.getVariableById(i);
+        Map<String, Double[]> probTable = new HashMap<>();
+        Map<String, Integer> EventNo = new HashMap<>();//Key: attrName, Value: first event no.
+        int totalEventNo = 0;
 
-            JSONObject node = new JSONObject();
-            node.put("id", i);
-            node.put("attrName", parentVar.getName());
-            node.put("value", 1);
-            nodesList.add(node);
-            for(int j : attrList){
+        for(int i = 0, len_i = attrList.length; i < len_i; i++){
+
+            /* get probability table */
+            parameterLearningAlgorithm.setDAG(dag);
+            parameterLearningAlgorithm.initLearning();
+            parameterLearningAlgorithm.updateModel(data);
+            BayesianNetwork bnModel = parameterLearningAlgorithm.getLearntBayesianNetwork();
+
+            int attrNo = attrList[i];
+            Variable attrNode = modelHeader.getVariableById(attrNo);
+            String attrName = attrNode.getName();
+            String __probDistList = bnModel.getConditionalDistribution(attrNode).toString();
+            String[] _probDistList = __probDistList.substring(2, __probDistList.length()-2).split(", ");
+//            System.out.println(attrNode.getName());
+//            System.out.println(probDist);
+
+            Double[] probDistList = new Double[_probDistList.length];
+            for(int j = 0, len_j = _probDistList.length; j < len_j; j++){
+                probDistList[j] = Double.valueOf(_probDistList[j]);
+
+                /* generate the node of eventNodeList */
+                JSONObject node = new JSONObject();
+                node.put("id", attrName+"_"+String.valueOf(j));
+                node.put("attrName", attrName);
+                node.put("eventNo", totalEventNo++);
+                node.put("value", 1);
+                nodesList.add(node);
+            }
+            probTable.put(attrName, probDistList);
+            EventNo.put(attrName, totalEventNo);
+
+        }
+//        System.out.println(probTable.get("lvb")[0]);
+
+        for(int i : attrList){//parent node
+            Variable parentVar = modelHeader.getVariableById(i);
+            for(int j : attrList){//child node
                 if(j != i){
                     Variable childVar = modelHeader.getVariableById(j);
                     //add single parent
@@ -147,20 +179,40 @@ public class Bayes {
                     /* get child node's name */
 //                    System.out.println(childVar.getName());
 
-                    ConditionalDistribution condDistr = bnModel.getConditionalDistribution(childVar);
-//                    String[]  condDistrList = condDistr.toString().split("\n");
-//                    for( String distribution: condDistrList){
-//                        System.out.println(distribution);
-//                    }
+                    ConditionalDistribution condDist = bnModel.getConditionalDistribution(childVar);
+                    String[]  condDistList = condDist.toString().split("\n");
+                    for(int k = 0, len_k = condDistList.length; k < len_k; k++){
+                        String[] probDistList_and_condition = condDistList[k].split("\\|");
+                        String __probDistList = probDistList_and_condition[0].trim();
+//                        String _condition = probDistList_and_condition[1].trim();
+                        String[] _probDistList = __probDistList.substring(2, __probDistList.length()-2).split(", ");
+//                        String condition = _condition.substring(1, _condition.length()-1);
+                        for( int m = 0, len_m = _probDistList.length; m < len_m; m++ ){
+                            Double[] cpt = new Double[4]; //cpb = [ P(A), P(B), P(A|B), P(A|B') ]
+                            cpt[0] = probTable.get(childVar.getName())[m];
+                            cpt[1] = probTable.get(parentVar.getName())[k];
+                            cpt[2] = Double.valueOf(_probDistList[m]);
+                            cpt[3] = 0.0;
+                            int cpt3_n, cpt_3_d;
+                            for(Iterator<DataInstance> iter = data.iterator();iter.hasNext();){
+                                DataInstance tmp = iter.next();
+                                Attribute fue = tmp.getAttributes().getAttributeByName("res");
+                                System.out.println((int)tmp.getValue(fue));
+                            }
+
+                            JSONObject link = new JSONObject();
+                            link.put("source", EventNo.get(parentVar.getName())+k);
+                            link.put("target", EventNo.get(childVar.getName())+m);
+                            link.put("value", _probDistList[m]);
+                            link.put("cpt", cpt);
+                            linksList.add(link);
+                        }
+
+                    }
 //                    System.out.println(data.getAttributes());
                     /* get parent(condition) node's name */
 //                    System.out.println(condDistr.getConditioningVariables().get(0).getName());
 
-                    JSONObject link = new JSONObject();
-                    link.put("source",condDistr.getConditioningVariables().get(0).getName());
-                    link.put("target",childVar.getName());
-                    link.put("value",condDistr.toString());
-                    linksList.add(link);
                     /* remove the parent */
                     dag.getParentSet(childVar).removeParent(parentVar);
                 }
@@ -169,6 +221,7 @@ public class Bayes {
 //        System.out.println(dag.getParentSet(sch).getMainVar().getName());
 //        System.out.println(dag.toString());
         System.out.println(nodesList);
+        System.out.println(linksList);
         gbn.put("nodes",nodesList);
         gbn.put("links",linksList);
 
