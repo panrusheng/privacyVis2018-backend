@@ -112,7 +112,7 @@ public class Bayes {
 //    }
     public static String getGBN(){
 
-        DecimalFormat df = new DecimalFormat("#0.00");
+        DecimalFormat df = new DecimalFormat("#0.00");//To use: df.format(num);
         DataStream<DataInstance> data = DataStreamLoader.open(root_path+"tk\\mybatis\\springboot\\data\\user.arff");
         ParameterLearningAlgorithm parameterLearningAlgorithm = new ParallelMaximumLikelihood();
 
@@ -144,6 +144,7 @@ public class Bayes {
 //            System.out.println(probDist);
 
             Double[] probDistList = new Double[_probDistList.length];
+            EventNo.put(attrName, totalEventNo);
             for(int j = 0, len_j = _probDistList.length; j < len_j; j++){
                 probDistList[j] = Double.valueOf(_probDistList[j]);
 
@@ -156,8 +157,6 @@ public class Bayes {
                 nodesList.add(node);
             }
             probTable.put(attrName, probDistList);
-            EventNo.put(attrName, totalEventNo);
-
         }
 //        System.out.println(probTable.get("lvb")[0]);
 
