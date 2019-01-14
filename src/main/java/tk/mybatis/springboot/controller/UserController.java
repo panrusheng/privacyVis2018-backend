@@ -107,24 +107,6 @@ public class UserController {
         return Bayes.getGBN();
     }
 
-//
-//    @RequestMapping(value = "/delete/{id}")
-//    public ModelMap delete(@PathVariable Integer id) {
-//        ModelMap result = new ModelMap();
-//        UserService.deleteById(id);
-//        result.put("msg", "删除成功!");
-//        return result;
-//    }
-//
-//    @RequestMapping(value = "/save", method = RequestMethod.POST)
-//    public ModelMap save(User User) {
-//        ModelMap result = new ModelMap();
-//        String msg = User.getId() == null ? "新增成功!" : "更新成功!";
-//        UserService.save(User);
-//        result.put("User", User);
-//        result.put("msg", msg);
-//        return result;
-//    }
 }
 
 class Category {
