@@ -17,34 +17,32 @@ import eu.amidst.core.learning.parametric.ParallelMaximumLikelihood;
 import eu.amidst.core.learning.parametric.ParameterLearningAlgorithm;
 import tk.mybatis.springboot.util.MyArffReader;
 
-import java.io.*;
+//import java.io.*;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
+//import java.nio.file.Files;
+//import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.*;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 public class Bayes {
     private static String root_path = "C:\\Users\\Echizen\\Documents\\work\\privacyVis2018\\src\\main\\java\\";
     public static String getGBN(){
         ParameterLearningAlgorithm parameterLearningAlgorithm = new ParallelMaximumLikelihood();
         DecimalFormat df = new DecimalFormat("#0.00");//To use: (String) df.format(Number);
-        DataFileReader myArffReader = new MyArffReader();
+        MyArffReader myArffReader = new MyArffReader();
 
         myArffReader.loadFromFile(root_path+"tk\\mybatis\\springboot\\data\\user.arff");
         DataStream<DataInstance> dataStream = new DataStreamFromFile(myArffReader);
-        Variables modelHeader = new Variables(dataStream.getAttributes());
+        Attributes attributes = dataStream.getAttributes();
+        Variables modelHeader = new Variables(attributes);
         DAG dag = new DAG(modelHeader);
-        int[] attrList = {2,3,4,5,6,7,8,9};
+        int[] attrList = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14};
         JSONObject gbn = new JSONObject();
         JSONArray nodesList = new JSONArray();
         JSONArray linksList = new JSONArray();
         Map<String, Double[]> probTable = new HashMap<>();
         Map<String, Integer> EventNo = new HashMap<>();//Key: attrName, Value: first event no.
         int totalEventNo = 0;
-
         for(int i = 0, len_i = attrList.length; i < len_i; i++){
             /* get probability table */
             parameterLearningAlgorithm.setDAG(dag);
@@ -55,18 +53,32 @@ public class Bayes {
             int attrNo = attrList[i];
             Variable attrNode = modelHeader.getVariableById(attrNo);
             String attrName = attrNode.getName();
-            Attribute attr = dataStream.getAttributes().getAttributeByName(attrName);
+            Attribute attr = attributes.getAttributeByName(attrName);
 
             String __probDistList = bnModel.getConditionalDistribution(attrNode).toString();
             String[] _probDistList = __probDistList.substring(2, __probDistList.length()-2).split(", ");
             Double[] probDistList = new Double[_probDistList.length];
             EventNo.put(attrName, totalEventNo);
+            double min = myArffReader.min[i];
+            double max = myArffReader.max[i];
+            String mid = df.format((min + max) / 2);
             for(int j = 0, len_j = _probDistList.length; j < len_j; j++){
                 probDistList[j] = Double.valueOf(_probDistList[j]);
 
                 /* generate the node of eventNodeList */
                 JSONObject node = new JSONObject();
-                node.put("id", attrName+"_"+ attr.stringValue((double)j));
+                String _eventName = attr.stringValue((double)j);
+                String eventName = "";
+                if(_eventName.equals("category_0")){
+                    eventName = "[" + min + "-" + mid + ")";
+                }
+                else if(_eventName.equals("category_1")){
+                    eventName = "[" + mid + "-" + max + "]";
+                }
+                else{
+                    eventName = _eventName;
+                }
+                node.put("id", attrName + "_" + eventName);
                 node.put("attrName", attrName);
                 node.put("eventNo", totalEventNo++);
                 node.put("value", 1);
@@ -127,10 +139,6 @@ public class Bayes {
                 }
             }
         }
-//        System.out.println(dag.getParentSet(sch).getMainVar().getName());
-//        System.out.println(dag.toString());
-        System.out.println(nodesList);
-        System.out.println(linksList);
         gbn.put("nodes",nodesList);
         gbn.put("links",linksList);
         return gbn.toJSONString();
