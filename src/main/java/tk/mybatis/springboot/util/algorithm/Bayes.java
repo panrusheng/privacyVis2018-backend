@@ -3,14 +3,10 @@ package tk.mybatis.springboot.util.algorithm;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import eu.amidst.core.datastream.*;
-import eu.amidst.core.datastream.filereaders.DataFileReader;
 import eu.amidst.core.datastream.filereaders.DataStreamFromFile;
 import eu.amidst.core.distribution.ConditionalDistribution;
-import eu.amidst.core.io.BayesianNetworkWriter;
-import eu.amidst.core.io.DataStreamLoader;
 import eu.amidst.core.models.BayesianNetwork;
 import eu.amidst.core.models.DAG;
-import eu.amidst.core.variables.Assignment;
 import eu.amidst.core.variables.Variable;
 import eu.amidst.core.variables.Variables;
 import eu.amidst.core.learning.parametric.ParallelMaximumLikelihood;
@@ -36,29 +32,29 @@ public class Bayes {
         Attributes attributes = dataStream.getAttributes();
         Variables modelHeader = new Variables(attributes);
         DAG dag = new DAG(modelHeader);
-        int[] attrList = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14};
+        int[] attList = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14};
         JSONObject gbn = new JSONObject();
         JSONArray nodesList = new JSONArray();
         JSONArray linksList = new JSONArray();
         Map<String, Double[]> probTable = new HashMap<>();
-        Map<String, Integer> EventNo = new HashMap<>();//Key: attrName, Value: first event no.
+        Map<String, Integer> EventNo = new HashMap<>();//Key: attName, Value: first event no.
         int totalEventNo = 0;
-        for(int i = 0, len_i = attrList.length; i < len_i; i++){
+        for(int i = 0, len_i = attList.length; i < len_i; i++){
             /* get probability table */
             parameterLearningAlgorithm.setDAG(dag);
             parameterLearningAlgorithm.initLearning();
             parameterLearningAlgorithm.updateModel(dataStream);
             BayesianNetwork bnModel = parameterLearningAlgorithm.getLearntBayesianNetwork();
 
-            int attrNo = attrList[i];
-            Variable attrNode = modelHeader.getVariableById(attrNo);
-            String attrName = attrNode.getName();
-            Attribute attr = attributes.getAttributeByName(attrName);
+            int attNo = attList[i];
+            Variable attNode = modelHeader.getVariableById(attNo);
+            String attName = attNode.getName();
+            Attribute att = attributes.getAttributeByName(attName);
 
-            String __probDistList = bnModel.getConditionalDistribution(attrNode).toString();
+            String __probDistList = bnModel.getConditionalDistribution(attNode).toString();
             String[] _probDistList = __probDistList.substring(2, __probDistList.length()-2).split(", ");
             Double[] probDistList = new Double[_probDistList.length];
-            EventNo.put(attrName, totalEventNo);
+            EventNo.put(attName, totalEventNo);
             double min = myArffReader.min[i];
             double max = myArffReader.max[i];
             String mid = df.format((min + max) / 2);
@@ -67,8 +63,8 @@ public class Bayes {
 
                 /* generate the node of eventNodeList */
                 JSONObject node = new JSONObject();
-                String _eventName = attr.stringValue((double)j);
-                String eventName = "";
+                String _eventName = att.stringValue((double)j);
+                String eventName;
                 if(_eventName.equals("category_0")){
                     eventName = "[" + min + "-" + mid + ")";
                 }
@@ -76,20 +72,20 @@ public class Bayes {
                     eventName = "[" + mid + "-" + max + "]";
                 }
                 else{
-                    eventName = _eventName;
+                    eventName = "_" + _eventName;
                 }
-                node.put("id", attrName + "_" + eventName);
-                node.put("attrName", attrName);
+                node.put("id", attName + eventName);
+                node.put("attName", attName);
                 node.put("eventNo", totalEventNo++);
                 node.put("value", 1);
                 nodesList.add(node);
             }
-            probTable.put(attrName, probDistList);
+            probTable.put(attName, probDistList);
         }
 
-        for(int i : attrList){//parent node
+        for(int i : attList){//parent node
             Variable parentVar = modelHeader.getVariableById(i);
-            for(int j : attrList){//child node
+            for(int j : attList){//child node
                 if(j != i){
                     Variable childVar = modelHeader.getVariableById(j);
                     String childVarName = childVar.getName();
@@ -115,12 +111,12 @@ public class Bayes {
                             cpt[2] = df.format(Double.valueOf(_probDistList[m])); //P(A|B)
                             int cpt3_n = 0, cpt3_d = 0;
                             for(DataInstance record : dataStream){
-                                Attributes recordAttr = record.getAttributes();
-                                int childAttr = (int)record.getValue(recordAttr.getAttributeByName(childVarName));
-                                int parentAttr = (int)record.getValue(recordAttr.getAttributeByName(parentVarName));
-                                if(parentAttr != k){
+                                Attributes recordAtt = record.getAttributes();
+                                int childAtt = (int)record.getValue(recordAtt.getAttributeByName(childVarName));
+                                int parentAtt = (int)record.getValue(recordAtt.getAttributeByName(parentVarName));
+                                if(parentAtt != k){
                                     cpt3_d++;
-                                    if(childAttr == m){
+                                    if(childAtt == m){
                                         cpt3_n++;
                                     }
                                 }
