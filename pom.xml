@@ -21,6 +21,15 @@
         <pagehelper.starter.version>1.2.5</pagehelper.starter.version>
     </properties>
 
+    <repositories>
+        <!-- AMIDST repository in github -->
+        <repository>
+            <id>amidstRepo</id> <!-- local identifier, it can be anything -->
+            <url>https://raw.github.com/amidst/toolbox/mvn-repo/</url>
+        </repository>
+        <!-- ... -->
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -122,6 +131,12 @@
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
             <version>1.2.51</version>
+        </dependency>
+
+        <dependency>
+            <groupId>nz.ac.waikato.cms.weka</groupId>
+            <artifactId>weka-stable</artifactId>
+            <version>3.8.0</version>
         </dependency>
 
     </dependencies>
