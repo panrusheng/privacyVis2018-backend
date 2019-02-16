@@ -3,9 +3,7 @@ package tk.mybatis.springboot.controller;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 import tk.mybatis.springboot.model.User;
@@ -14,7 +12,8 @@ import tk.mybatis.springboot.service.UserService;
 import java.util.Arrays;
 import java.util.List;
 
-import tk.mybatis.springboot.util.algorithm.Bayes;
+import tk.mybatis.springboot.util.Bayes;
+import tk.mybatis.springboot.util.MyMath;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -105,6 +104,13 @@ public class UserController {
     @RequestMapping(value = "/get_gbn")
     public String get_gbn(){
         return Bayes.getGBN();
+    }
+
+    @RequestMapping(value = "/test")
+    public void test() {
+        for(int i = 0; i < 6;i++){
+            System.out.println(MyMath.fact(i, 1));
+        }
     }
 
 }
