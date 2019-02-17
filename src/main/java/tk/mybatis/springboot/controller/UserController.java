@@ -62,10 +62,11 @@ public class UserController {
     public String get_attribute_distribution(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         JSONArray attributes = new JSONArray();
+        Bayes bn = new Bayes();
         for(String att: selectAtt){
             JSONObject attrObj = new JSONObject();
             String type = (String)((JSONObject) this.attrList.get(att)).get("type");
-            String dataList = Bayes.getAttDistribution(att, type);
+            String dataList = bn.getAttDistribution(att, type);
             attrObj.put("attributeName",att);
             attrObj.put("type",type);
             attrObj.put("data",dataList);
