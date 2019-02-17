@@ -24,7 +24,7 @@ public class Bayes {
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
-            originalData = new Instances(reader);
+            this.originalData = new Instances(reader);
         }catch (Exception e) {
             e.printStackTrace();
         }
@@ -34,9 +34,9 @@ public class Bayes {
             initOriginalData();
             Discretize discretize = new Discretize();
             discretize.setBins(2);
-            discretize.setInputFormat(originalData);
-            data = Filter.useFilter(originalData, discretize);
-            data.setClassIndex(data.numAttributes() - 1);
+            discretize.setInputFormat(this.originalData);
+            this.data = Filter.useFilter(this.originalData, discretize);
+            this.data.setClassIndex(this.data.numAttributes() - 1);
         }catch (Exception e) {
             e.printStackTrace();
         }
@@ -45,6 +45,12 @@ public class Bayes {
     public Bayes(){
         initData();
     }
+
+    /**
+     * remove the quotation on the start and the end
+     * @param value
+     * @return
+     */
     private String trim_quotation(String value){
         if(value.startsWith("\'")){
             value = value.substring(1, value.length()-1);
@@ -52,7 +58,104 @@ public class Bayes {
         return value;
     }
 
-    public String getGBN() {
+    /**
+     * @param att: attribute name
+     * @param type: type of the attribute
+     * @return dataList: the JSONArray of data<JSONObject>
+     */
+    public String getAttDistribution(String att, String type) {
+        JSONArray dataList = new JSONArray();
+        switch(type){
+            case "numerical": {
+                try{
+                    Attribute attribute = originalData.attribute(att);
+                    Map<Double, Integer> eventCount = new TreeMap<>();
+                    for(int i = 0, numInstances = originalData.numInstances(); i < numInstances; i++){
+                        Instance instance = originalData.instance(i);
+                        double attKey = instance.value(attribute);
+                        if(eventCount.containsKey(attKey)){
+                            eventCount.put(attKey, eventCount.get(attKey)+1);
+                        } else {
+                            eventCount.put(attKey, 1);
+                        }
+                    }
+                    for(Double key : eventCount.keySet()){
+                        JSONObject dataItem = new JSONObject();
+                        dataItem.put("label", key);
+                        dataItem.put("value", eventCount.get(key));
+                        dataList.add(dataItem);
+                    }
+                } catch(Exception e){
+                    e.printStackTrace();
+                }
+            } break;
+            case "categorical": {
+                Attribute attribute = data.attribute(att);
+                Map<String, Integer> eventCount = new HashMap<>();
+                for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
+                    Instance instance = data.instance(i);
+                    String attKey = instance.stringValue(attribute);
+                    if(eventCount.containsKey(attKey)){
+                        eventCount.put(attKey, eventCount.get(attKey)+1);
+                    } else {
+                        eventCount.put(attKey, 1);
+                    }
+                }
+                for(String key : eventCount.keySet()){
+                    JSONObject dataItem = new JSONObject();
+                    dataItem.put("category", key);
+                    dataItem.put("value", eventCount.get(key));
+                    dataList.add(dataItem);
+                }
+            } break;
+            default: break;
+        }
+        return dataList.toJSONString();
+    }
+
+    /**
+     * get global GBN of bayes net
+     * @return
+     */
+    public String getGBN(){
+        return getGBNWithGivenData(this.data);
+    }
+
+    /**
+     * get local GBN of bayes net
+     * @param attList : the subset of attributes
+     * @return
+     */
+    public String getLocalGBN(List<String> attList){
+        Instances data = null;
+        try{
+            Discretize discretize = new Discretize();
+            discretize.setBins(2);
+            discretize.setInputFormat(originalData);
+            data = Filter.useFilter(originalData, discretize);
+            data.setClassIndex(data.numAttributes() - 1);
+
+            for(int i = 0, len_i = data.numAttributes(); i < len_i; i++){
+                if(!attList.contains(data.attribute(i).name())){
+                    data.deleteAttributeAt(i);
+                    i--;
+                    len_i--;
+                }else{
+                    data.setClassIndex(i);
+                }
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+        return getGBNWithGivenData(data);
+    }
+
+    /**
+     * get GBN with given data
+     * @param data
+     * @return
+     */
+    public String getGBNWithGivenData(Instances data) {
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
@@ -162,60 +265,9 @@ public class Bayes {
     }
 
     /**
-     * @param att: attribute name
-     * @param type: type of the attribute
-     * @return dataList: the JSONArray of data<JSONObject>
+     * used for function test
+     * @param args
      */
-    public String getAttDistribution(String att, String type) {
-        JSONArray dataList = new JSONArray();
-        switch(type){
-            case "numerical": {
-                try{
-                    Attribute attribute = originalData.attribute(att);
-                    Map<Double, Integer> eventCount = new TreeMap<>();
-                    for(int i = 0, numInstances = originalData.numInstances(); i < numInstances; i++){
-                        Instance instance = originalData.instance(i);
-                        double attKey = instance.value(attribute);
-                        if(eventCount.containsKey(attKey)){
-                            eventCount.put(attKey, eventCount.get(attKey)+1);
-                        } else {
-                            eventCount.put(attKey, 1);
-                        }
-                    }
-                    for(Double key : eventCount.keySet()){
-                        JSONObject dataItem = new JSONObject();
-                        dataItem.put("label", key);
-                        dataItem.put("value", eventCount.get(key));
-                        dataList.add(dataItem);
-                    }
-                } catch(Exception e){
-                    e.printStackTrace();
-                }
-            } break;
-            case "categorical": {
-                Attribute attribute = data.attribute(att);
-                Map<String, Integer> eventCount = new HashMap<>();
-                for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
-                    Instance instance = data.instance(i);
-                    String attKey = instance.stringValue(attribute);
-                    if(eventCount.containsKey(attKey)){
-                        eventCount.put(attKey, eventCount.get(attKey)+1);
-                    } else {
-                        eventCount.put(attKey, 1);
-                    }
-                }
-                for(String key : eventCount.keySet()){
-                    JSONObject dataItem = new JSONObject();
-                    dataItem.put("category", key);
-                    dataItem.put("value", eventCount.get(key));
-                    dataList.add(dataItem);
-                }
-            } break;
-            default: break;
-        }
-        return dataList.toJSONString();
-    }
-
     public static void main(String[] args) {
         Bayes bn = new Bayes();
         System.out.println(bn.getAttDistribution("wei", "numerical"));

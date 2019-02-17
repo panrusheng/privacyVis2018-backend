@@ -77,29 +77,17 @@ public class UserController {
         return response.toJSONString();
     }
 
-    @RequestMapping(value = "/add")
-    public User add() {
-        return new User();
-    }
-
-    @RequestMapping(value = "/view/{id}")
-    public User view(@PathVariable Integer id) {
-        ModelAndView result = new ModelAndView();
-        User User = UserService.getById(id);
-        return User;
-    }
-
     @RequestMapping(value = "/get_gbn")
     public String get_gbn(){
         Bayes bn = new Bayes();
         return bn.getGBN();
     }
 
-    @RequestMapping(value = "/test")
-    public void test() {
-        for(int i = 0; i < 6;i++){
-            System.out.println(MyMath.fact(i, 1));
-        }
+    @RequestMapping(value = "/get_local_gbn", method = RequestMethod.POST)
+    public String get_local_gbn(HttpServletRequest request) {
+        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
+        Bayes bn = new Bayes();
+        return bn.getLocalGBN(selectAtt);
     }
 
 }
