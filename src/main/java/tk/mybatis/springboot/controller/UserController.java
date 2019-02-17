@@ -9,6 +9,7 @@ import org.springframework.web.servlet.ModelAndView;
 import tk.mybatis.springboot.model.User;
 import tk.mybatis.springboot.service.UserService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -52,8 +53,6 @@ public class UserController {
 
     @RequestMapping(value = "/load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
-//        String datasetName = request.getParameter("dataset");
-//        if(datasetName.equals("user")){}
         JSONObject response = new JSONObject();
         response.put("attrList",this.attrList);
         return response.toJSONString();
@@ -61,27 +60,15 @@ public class UserController {
 
     @RequestMapping(value = "/get_attribute_distribution", method = RequestMethod.POST)
     public String get_attribute_distribution(HttpServletRequest request) {
-        List<User> userList = UserService.getAll();
-        List<String> selectAttr = JSON.parseArray(request.getParameter("attributes"), String.class);
-
+        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         JSONArray attributes = new JSONArray();
-        for(String attr: selectAttr){
+        for(String att: selectAtt){
             JSONObject attrObj = new JSONObject();
-            String type = (String)((JSONObject) this.attrList.get(attr)).get("type");
-            if(type.equals("categorical")){//type = categorical
-                List<Category> dataList;
-                for(User _user: userList){
-                    JSONObject user = JSONObject.parseObject(JSONObject.toJSONString(_user));
-                    String attribute = (String)user.get(attr);
-
-                }
-            }
-            else{//type = numerical
-
-            }
-            attrObj.put("attributeName",attr);
+            String type = (String)((JSONObject) this.attrList.get(att)).get("type");
+            String dataList = Bayes.getAttDistribution(att, type);
+            attrObj.put("attributeName",att);
             attrObj.put("type",type);
-//            attrObj.put("data",JSON.parseObject(dataList.toString()));
+            attrObj.put("data",dataList);
             attributes.add(attrObj);
         }
         JSONObject response = new JSONObject();
@@ -103,7 +90,8 @@ public class UserController {
 
     @RequestMapping(value = "/get_gbn")
     public String get_gbn(){
-        return Bayes.getGBN();
+        Bayes bn = new Bayes();
+        return bn.getGBN();
     }
 
     @RequestMapping(value = "/test")
@@ -113,60 +101,4 @@ public class UserController {
         }
     }
 
-}
-
-class Category {
-
-    private String category;
-
-    private float value;
-
-    Category(){
-        this.category = "empty";
-        this.value = 0.5f;
-    }
-
-    public void setCategory(String category) {
-        this.category = category;
-    }
-
-    public String getCategory() {
-        return this.category;
-    }
-
-    public void setValue(float value) {
-        this.value = value;
-    }
-
-    public float getValue() {
-        return this.value;
-    }
-}
-
-class Number {
-
-    private List<Float> label;//2-tuple
-
-    private float value;
-
-    Number(){
-        this.label = Arrays.asList(0.0f, 1.0f);
-        this.value = 0.5f;
-    }
-
-    public void setLabel(List<Float> label) {
-        this.label = label;
-    }
-
-    public List<Float> getLabel() {
-        return this.label;
-    }
-
-    public void setValue(float value) {
-        this.value = value;
-    }
-
-    public float getValue() {
-        return this.value;
-    }
 }
