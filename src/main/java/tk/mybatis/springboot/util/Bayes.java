@@ -5,7 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.estimate.SimpleEstimator;
-import weka.classifiers.bayes.net.search.local.K2;
+import weka.classifiers.bayes.net.search.local.*;
 import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
@@ -17,15 +17,15 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
-
+enum LocalSearchAlgorithm {
+    K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
+    RepeatedHillClimber, Scoreable, SimulatedAnnealing, TabuSearch, TAN
+}
 public class Bayes {
-    private String root_path;
+    private static String root_path = new File(".").getAbsoluteFile().getParent()
+            + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private Instances originalData;
     private Instances data;
-    private void initRootPath(){
-        StringBuilder project_path = new StringBuilder(new File(".").getAbsoluteFile().toString());
-        root_path = project_path.substring(0, project_path.length()-1) + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    }
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
@@ -48,7 +48,6 @@ public class Bayes {
     }
 
     public Bayes(){
-        initRootPath();
         initData();
     }
 
@@ -123,8 +122,16 @@ public class Bayes {
      * get global GBN of bayes net
      * @return
      */
-    public String getGBN(){
-        return getGBNWithGivenData(this.data);
+    public String getGlobalGBN(){
+        return getGlobalGBN("K2");
+    }
+
+    /**
+     * get global GBN of bayes net with given localSearchAlgorithm
+     * @return
+     */
+    public String getGlobalGBN(String localSearchAlgorithm){
+        return getGBN(this.data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
     }
 
     /**
@@ -133,6 +140,15 @@ public class Bayes {
      * @return
      */
     public String getLocalGBN(List<String> attList){
+        return getLocalGBN(attList, "K2");
+    }
+
+    /**
+     * get local GBN of bayes net with given localSearchAlgorithm
+     * @param attList : the subset of attributes
+     * @return
+     */
+    public String getLocalGBN(List<String> attList, String localSearchAlgorithm){
         Instances data = null;
         try{
             Discretize discretize = new Discretize();
@@ -153,29 +169,70 @@ public class Bayes {
         }catch (Exception e) {
             e.printStackTrace();
         }
-        return getGBNWithGivenData(data);
+        return getGBN(data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
     }
 
     /**
-     * get GBN with given data
+     * get GBN with given data and local search algorithm
      * @param data
      * @return
      */
-    private String getGBNWithGivenData(Instances data) {
+    private String getGBN(Instances data, LocalSearchAlgorithm localSearchAlgorithm) {
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
         DecimalFormat df = new DecimalFormat("#0.00");//To use: (String) df.format(Number);
         try {
             BayesNet bn = new BayesNet();
-            K2 algorithm = new K2();
+
+            switch (localSearchAlgorithm){
+                case K2:{
+                    K2 algorithm = new K2();
+//                    algorithm.setMaxNrOfParents(data.numAttributes() - 1);
+//                    algorithm.setInitAsNaiveBayes(false);
+                    bn.setSearchAlgorithm(algorithm);
+                }break;
+                case GeneticSearch:{
+                    GeneticSearch algorithm = new GeneticSearch();
+                    bn.setSearchAlgorithm(algorithm);
+                }
+                case HillClimber:{
+                    HillClimber algorithm = new HillClimber();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case LAGDHillClimber:{
+                    LAGDHillClimber algorithm = new LAGDHillClimber();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case LocalScoreSearchAlgorithm:{
+                    LocalScoreSearchAlgorithm algorithm = new LocalScoreSearchAlgorithm();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case RepeatedHillClimber:{
+                    RepeatedHillClimber algorithm = new RepeatedHillClimber();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case Scoreable:{
+//                    Scoreable algorithm = new Scoreable();
+//                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case SimulatedAnnealing:{
+                    SimulatedAnnealing algorithm = new SimulatedAnnealing();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case TabuSearch:{
+                    TabuSearch algorithm = new TabuSearch();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                case TAN:{
+                    TAN algorithm = new TAN();
+                    bn.setSearchAlgorithm(algorithm);
+                } break;
+                default:break;
+            }
+
             SimpleEstimator estimator = new SimpleEstimator();
-
-            algorithm.setMaxNrOfParents(data.numAttributes() - 1);
-            algorithm.setInitAsNaiveBayes(false);
             estimator.setAlpha(0.5);
-
-            bn.setSearchAlgorithm(algorithm);
             bn.setEstimator(estimator);
 
             bn.buildClassifier(data);
@@ -278,10 +335,6 @@ public class Bayes {
 //        Bayes bn = new Bayes();
 //        System.out.println(bn.getAttDistribution("wei", "numerical"));
 //        System.out.println(bn.getAttDistribution("cat", "categorical"));
-        File file = new File(".");
-        System.out.println(file.getAbsoluteFile().toString());
-        StringBuilder project_path = new StringBuilder(file.getAbsoluteFile().getName());
-        System.out.println(project_path.substring(0, project_path.length()-1));
     }
 }
 

@@ -77,17 +77,27 @@ public class UserController {
         return response.toJSONString();
     }
 
-    @RequestMapping(value = "/get_gbn")
-    public String get_gbn(){
+    @RequestMapping(value = "/get_gbn", method = RequestMethod.POST)
+    public String get_gbn(HttpServletRequest request){
+        String method = request.getParameter("method");
         Bayes bn = new Bayes();
-        return bn.getGBN();
+        if(method != null){
+            return bn.getGlobalGBN(method);
+        } else{
+            return bn.getGlobalGBN();
+        }
     }
 
     @RequestMapping(value = "/get_local_gbn", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
+        String method = request.getParameter("method");
         Bayes bn = new Bayes();
-        return bn.getLocalGBN(selectAtt);
+        if(method != null) {
+            return bn.getLocalGBN(selectAtt, method);
+        } else{
+            return bn.getLocalGBN(selectAtt);
+        }
     }
 
 }
