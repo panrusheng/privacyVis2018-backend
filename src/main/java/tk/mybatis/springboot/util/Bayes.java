@@ -13,14 +13,19 @@ import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.Discretize;
 
 import java.text.DecimalFormat;
+import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
 
 public class Bayes {
-    private static String root_path = "C:\\Users\\Echizen\\Documents\\work\\privacyVis2018\\src\\main\\java\\";
+    private String root_path;
     private Instances originalData;
     private Instances data;
+    private void initRootPath(){
+        StringBuilder project_path = new StringBuilder(new File(".").getAbsoluteFile().toString());
+        root_path = project_path.substring(0, project_path.length()-1) + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
+    }
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
@@ -43,6 +48,7 @@ public class Bayes {
     }
 
     public Bayes(){
+        initRootPath();
         initData();
     }
 
@@ -269,9 +275,13 @@ public class Bayes {
      * @param args
      */
     public static void main(String[] args) {
-        Bayes bn = new Bayes();
-        System.out.println(bn.getAttDistribution("wei", "numerical"));
-        System.out.println(bn.getAttDistribution("cat", "categorical"));
+//        Bayes bn = new Bayes();
+//        System.out.println(bn.getAttDistribution("wei", "numerical"));
+//        System.out.println(bn.getAttDistribution("cat", "categorical"));
+        File file = new File(".");
+        System.out.println(file.getAbsoluteFile().toString());
+        StringBuilder project_path = new StringBuilder(file.getAbsoluteFile().getName());
+        System.out.println(project_path.substring(0, project_path.length()-1));
     }
 }
 
