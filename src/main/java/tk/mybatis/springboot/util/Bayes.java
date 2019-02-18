@@ -47,7 +47,7 @@ public class Bayes {
     }
 
     /**
-     * remove the quotation on the start and the end
+     * remove the quotation on the start and the end if it has
      * @param value
      * @return
      */
@@ -63,7 +63,7 @@ public class Bayes {
      * @param type: type of the attribute
      * @return dataList: the JSONArray of data<JSONObject>
      */
-    public String getAttDistribution(String att, String type) {
+    public JSONArray getAttDistribution(String att, String type) {
         JSONArray dataList = new JSONArray();
         switch(type){
             case "numerical": {
@@ -110,7 +110,7 @@ public class Bayes {
             } break;
             default: break;
         }
-        return dataList.toJSONString();
+        return dataList;
     }
 
     /**
@@ -155,7 +155,7 @@ public class Bayes {
      * @param data
      * @return
      */
-    public String getGBNWithGivenData(Instances data) {
+    private String getGBNWithGivenData(Instances data) {
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();

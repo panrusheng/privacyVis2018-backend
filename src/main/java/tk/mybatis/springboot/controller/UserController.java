@@ -66,7 +66,7 @@ public class UserController {
         for(String att: selectAtt){
             JSONObject attrObj = new JSONObject();
             String type = (String)((JSONObject) this.attrList.get(att)).get("type");
-            String dataList = bn.getAttDistribution(att, type);
+            JSONArray dataList = bn.getAttDistribution(att, type);
             attrObj.put("attributeName",att);
             attrObj.put("type",type);
             attrObj.put("data",dataList);
