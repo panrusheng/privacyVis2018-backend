@@ -9,8 +9,6 @@ import org.springframework.web.servlet.ModelAndView;
 import tk.mybatis.springboot.model.User;
 import tk.mybatis.springboot.service.UserService;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import tk.mybatis.springboot.util.Bayes;
@@ -27,7 +25,9 @@ public class UserController {
 
     private JSONObject attrList;
 
-    UserController() {
+    private String localSearchMethod;
+
+    private void initAttrList(){
         this.attrList = new JSONObject();
         this.attrList.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
         this.attrList.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
@@ -44,6 +44,11 @@ public class UserController {
         this.attrList.put("FE" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
         this.attrList.put("HE" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
         this.attrList.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+    }
+
+    UserController() {
+        initAttrList();
+        this.localSearchMethod = null;
     }
 
     @RequestMapping//Home
@@ -82,6 +87,7 @@ public class UserController {
         String method = request.getParameter("method");
         Bayes bn = new Bayes();
         if(method != null){
+            this.localSearchMethod = method;
             return bn.getGlobalGBN(method);
         } else{
             return bn.getGlobalGBN();
@@ -91,13 +97,11 @@ public class UserController {
     @RequestMapping(value = "/get_local_gbn", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
-        String method = request.getParameter("method");
         Bayes bn = new Bayes();
-        if(method != null) {
-            return bn.getLocalGBN(selectAtt, method);
+        if(this.localSearchMethod != null) {
+            return bn.getLocalGBN(selectAtt, this.localSearchMethod);
         } else{
             return bn.getLocalGBN(selectAtt);
         }
     }
-
 }
