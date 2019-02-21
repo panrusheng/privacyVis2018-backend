@@ -146,7 +146,14 @@ public class Bayes {
         return this.globalGBN.toJSONString();
     }
 
-    public String getLocalGBN(){
+    public String recommendGroup(){
+        JSONObject recommendation = new JSONObject();
+        recommendation.put("group", getLocalGBN());
+        recommendation.put("rec", "");
+        return recommendation.toJSONString();
+    }
+
+    private JSONArray getLocalGBN(){
         if(this.globalGBN == null){
             getGlobalGBN();
         }
@@ -156,6 +163,7 @@ public class Bayes {
         Map<Integer, Set<Integer>> linksMapTargetKey = new HashMap<>();
         BiMap<String, Integer> nodesMap = HashBiMap.create();
         Map<JSONArray, Integer> localGBNs = new HashMap<>();
+        JSONArray jsonLocalGBNs = new JSONArray();
         for(Object _node : nodesList){
             JSONObject node = (JSONObject) _node;
             nodesMap.put((String)node.get("id"), (Integer)node.get("eventNo"));
@@ -230,7 +238,6 @@ public class Bayes {
         long endTime = System.nanoTime();
         System.out.println("程序运行时间： "+(endTime-startTime)/1e9+"s");
 
-        JSONArray jsonLocalGBNs = new JSONArray();
         for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
             JSONObject localGBN = new JSONObject();
             JSONArray links = gbn.getKey();
@@ -252,7 +259,7 @@ public class Bayes {
             localGBN.put("nodes", nodes);
             jsonLocalGBNs.add(localGBN);
         }
-        return jsonLocalGBNs.toJSONString();
+        return jsonLocalGBNs;
     }
 
     /**

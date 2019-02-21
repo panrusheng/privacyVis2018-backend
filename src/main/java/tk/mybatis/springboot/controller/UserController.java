@@ -90,9 +90,9 @@ public class UserController {
         }
     }
 
-    @RequestMapping(value = "/get_local_gbn", method = RequestMethod.POST)
+    @RequestMapping(value = "/recommendation", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
         Bayes bn = new Bayes();
-        return bn.getLocalGBN();
+        return bn.recommendGroup();
     }
 }
