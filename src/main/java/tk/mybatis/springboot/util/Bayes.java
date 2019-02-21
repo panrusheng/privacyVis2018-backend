@@ -1,8 +1,11 @@
 package tk.mybatis.springboot.util;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.estimate.SimpleEstimator;
 import weka.classifiers.bayes.net.search.local.*;
@@ -151,7 +154,7 @@ public class Bayes {
         JSONArray linksList = (JSONArray) this.globalGBN.get("links");
         Map<Integer, Set<Integer>> linksMapSourceKey = new HashMap<>();
         Map<Integer, Set<Integer>> linksMapTargetKey = new HashMap<>();
-        Map<String, Integer> nodesMap = new HashMap<>();
+        BiMap<String, Integer> nodesMap = HashBiMap.create();
         Map<JSONArray, Integer> localGBNs = new HashMap<>();
         for(Object _node : nodesList){
             JSONObject node = (JSONObject) _node;
@@ -216,22 +219,42 @@ public class Bayes {
             }
         }
 
+        long startTime = System.nanoTime();
         List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
         Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
             @Override
             public int compare(Map.Entry<JSONArray, Integer> o1, Map.Entry<JSONArray, Integer> o2) {
-                return o2.getValue()-o1.getValue();
+                return o2.getValue() - o1.getValue();
             }
         });
+        long endTime = System.nanoTime();
+        System.out.println("程序运行时间： "+(endTime-startTime)/1e9+"s");
+
         JSONArray jsonLocalGBNs = new JSONArray();
         for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
             JSONObject localGBN = new JSONObject();
-            localGBN.put("group_frequency",gbn.getValue());
-            localGBN.put("gbn_structure", gbn.getKey());
+            JSONArray links = gbn.getKey();
+            Set<Integer> nodesSet = new HashSet<>();
+            JSONArray nodes = new JSONArray();
+            for(Object _link: links){
+                JSONObject link = (JSONObject) _link;
+                nodesSet.add((Integer) link.get("source"));
+                nodesSet.add((Integer) link.get("target"));
+            }
+            for(Integer _node : nodesSet){
+                JSONObject node = new JSONObject();
+                node.put("id", nodesMap.inverse().get(_node));
+                node.put("value", 1);
+                nodes.add(node);
+            }
+            localGBN.put("num", gbn.getValue());
+            localGBN.put("links", links);
+            localGBN.put("nodes", nodes);
             jsonLocalGBNs.add(localGBN);
         }
         return jsonLocalGBNs.toJSONString();
     }
+
     /**
      * get GBN with given data and local search algorithm
      * @param data
