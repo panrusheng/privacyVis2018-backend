@@ -19,13 +19,14 @@ import java.io.FileReader;
 import java.util.*;
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
-    RepeatedHillClimber, Scoreable, SimulatedAnnealing, TabuSearch, TAN
+    RepeatedHillClimber, SimulatedAnnealing, TabuSearch, TAN
 }
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private Instances originalData;
     private Instances data;
+    private JSONObject globalGBN;
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
@@ -34,11 +35,11 @@ public class Bayes {
             e.printStackTrace();
         }
     }
-    private void initData(){
+    private void initData(int discretizeBins){
         try{
             initOriginalData();
             Discretize discretize = new Discretize();
-            discretize.setBins(2);
+            discretize.setBins(discretizeBins);
             discretize.setInputFormat(this.originalData);
             this.data = Filter.useFilter(this.originalData, discretize);
             this.data.setClassIndex(this.data.numAttributes() - 1);
@@ -48,7 +49,12 @@ public class Bayes {
     }
 
     public Bayes(){
-        initData();
+        this(2);
+    }
+
+    public Bayes(int discretizeBins){
+        initData(discretizeBins);
+        this.globalGBN = null;
     }
 
     /**
@@ -131,53 +137,91 @@ public class Bayes {
      * @return
      */
     public String getGlobalGBN(String localSearchAlgorithm){
-        return getGBN(this.data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
+        if(this.globalGBN == null){
+            this.globalGBN = getGBN(this.data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
+        }
+        return this.globalGBN.toJSONString();
     }
 
-    /**
-     * get local GBN of bayes net
-     * @param attList : the subset of attributes
-     * @return
-     */
-    public String getLocalGBN(List<String> attList){
-        return getLocalGBN(attList, "K2");
-    }
+    public String getLocalGBN(){
+        if(this.globalGBN == null){
+            getGlobalGBN();
+        }
+        JSONArray nodesList = (JSONArray) this.globalGBN.get("nodes");
+        JSONArray linksList = (JSONArray) this.globalGBN.get("links");
+        Map<Integer, Set<Integer>> linksMapSourceKey = new HashMap<>();
+        Map<Integer, Set<Integer>> linksMapTargetKey = new HashMap<>();
+        Map<String, Integer> nodesMap = new HashMap<>();
+        Set<JSONArray> localGBNs = new HashSet<>();
+        for(Object _node : nodesList){
+            JSONObject node = (JSONObject) _node;
+            nodesMap.put((String)node.get("id"), (Integer)node.get("eventNo"));
+        }
+        for(Object _link : linksList){
+            JSONObject link = (JSONObject) _link;
+            Integer source = (Integer)link.get("source");
+            Integer target = (Integer)link.get("target");
+            if(linksMapSourceKey.containsKey(source)){
+                linksMapSourceKey.get(source).add(target);
+            }else {
+                Set<Integer> valueSet = new HashSet();
+                valueSet.add(target);
+                linksMapSourceKey.put(source, valueSet);
+            }
 
-    /**
-     * get local GBN of bayes net with given localSearchAlgorithm
-     * @param attList : the subset of attributes
-     * @return
-     */
-    public String getLocalGBN(List<String> attList, String localSearchAlgorithm){
-        Instances data = null;
-        try{
-            Discretize discretize = new Discretize();
-            discretize.setBins(2);
-            discretize.setInputFormat(originalData);
-            data = Filter.useFilter(originalData, discretize);
-            data.setClassIndex(data.numAttributes() - 1);
-
-            for(int i = 0, len_i = data.numAttributes(); i < len_i; i++){
-                if(!attList.contains(data.attribute(i).name())){
-                    data.deleteAttributeAt(i);
-                    i--;
-                    len_i--;
-                }else{
-                    data.setClassIndex(i);
+            if(linksMapTargetKey.containsKey(target)){
+                linksMapTargetKey.get(target).add(source);
+            }else {
+                Set<Integer> valueSet = new HashSet();
+                valueSet.add(source);
+                linksMapTargetKey.put(target, valueSet);
+            }
+        }
+        for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
+            Instance instance = data.instance(i);
+            JSONArray links = new JSONArray();
+            int numAttributes = data.numAttributes();
+            ArrayList<Integer> entityEventList =  new ArrayList<>();
+            for(int j = 0; j < numAttributes; j++){
+                entityEventList.add(nodesMap.get(data.attribute(j).name() + ": " + trim_quotation(instance.stringValue(j))));
+            }
+            for(int j = 0; j < numAttributes; j++){
+                int eventNo = entityEventList.get(j);
+                if(linksMapSourceKey.containsKey(eventNo)){
+                    for(int target : linksMapSourceKey.get(eventNo)){
+                        if(entityEventList.contains(target)) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", eventNo);
+                            link.put("target", target);
+                            links.add(link);
+                        }
+                    }
+                }
+                if(linksMapTargetKey.containsKey(eventNo)){
+                    for(int source : linksMapTargetKey.get(eventNo)){
+                        if(entityEventList.contains((source))){
+                            JSONObject link = new JSONObject();
+                            link.put("source", source);
+                            link.put("target", eventNo);
+                            links.add(link);
+                        }
+                    }
                 }
             }
-        }catch (Exception e) {
-            e.printStackTrace();
+            localGBNs.add(links);
         }
-        return getGBN(data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
+        JSONArray jsonLocalGBNs = new JSONArray();
+        for(JSONArray gbn : localGBNs){
+            jsonLocalGBNs.add(gbn);
+        }
+        return jsonLocalGBNs.toJSONString();
     }
-
     /**
      * get GBN with given data and local search algorithm
      * @param data
      * @return
      */
-    private String getGBN(Instances data, LocalSearchAlgorithm localSearchAlgorithm) {
+    private JSONObject getGBN(Instances data, LocalSearchAlgorithm localSearchAlgorithm) {
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
@@ -188,8 +232,8 @@ public class Bayes {
             switch (localSearchAlgorithm){
                 case K2:{
                     K2 algorithm = new K2();
-//                    algorithm.setMaxNrOfParents(data.numAttributes() - 1);
-//                    algorithm.setInitAsNaiveBayes(false);
+                    algorithm.setMaxNrOfParents(data.numAttributes() - 1);
+                    algorithm.setInitAsNaiveBayes(false);
                     bn.setSearchAlgorithm(algorithm);
                 }break;
                 case GeneticSearch:{
@@ -211,10 +255,6 @@ public class Bayes {
                 case RepeatedHillClimber:{
                     RepeatedHillClimber algorithm = new RepeatedHillClimber();
                     bn.setSearchAlgorithm(algorithm);
-                } break;
-                case Scoreable:{
-//                    Scoreable algorithm = new Scoreable();
-//                    bn.setSearchAlgorithm(algorithm);
                 } break;
                 case SimulatedAnnealing:{
                     SimulatedAnnealing algorithm = new SimulatedAnnealing();
@@ -243,23 +283,24 @@ public class Bayes {
             HashMap<String, Integer> eventNoMap = new HashMap<>();
             HashMap<String, Integer> priorMap = new HashMap<>();
 
-            for (int i = 0; i < bn.getNrOfNodes(); ++i) {
-                String attr = bn.getNodeName(i);
-                for (int j = 0; j < bn.getCardinality(i); ++j) {
+            for (int i = 0, nrOfNodes = bn.getNrOfNodes(); i < nrOfNodes; ++i) {
+                String att = bn.getNodeName(i);
+                for (int j = 0 , cardinality_i = bn.getCardinality(i); j < cardinality_i; ++j) {
                     JSONObject node = new JSONObject();
                     String value = trim_quotation(bn.getNodeValue(i, j));
-                    node.put("attrName", attr);
-                    node.put("id", attr + ": " + value);
+                    node.put("attName", att);
+                    node.put("id", att + ": " + value);
                     node.put("value", 1);
                     node.put("eventNo", incrId);
                     nodeList.add(node);
-                    eventNoMap.put(attr + ": " + value, incrId++);
+                    eventNoMap.put(att + ": " + value, incrId++);
                 }
             }
 
-            for (int i = 0; i < data.numAttributes(); ++i) {
-                for (int j = 0; j < data.numInstances(); ++j) {
-                    String id = data.attribute(i).name() + ": " + trim_quotation(data.instance(j).stringValue(i));
+            for (int i = 0, numAttributes = data.numAttributes(); i < numAttributes; ++i) {
+                String attributeName = data.attribute(i).name();
+                for (int j = 0, numInstances = data.numInstances(); j < numInstances; ++j) {
+                    String id = attributeName + ": " + trim_quotation(data.instance(j).stringValue(i));
                     if (!priorMap.containsKey(id)) {
                         priorMap.put(id, 0);
                     }
@@ -269,20 +310,20 @@ public class Bayes {
 
             int numInstances = data.numInstances();
 
-            for (int iNode = 0; iNode < bn.getNrOfNodes(); ++iNode) {
-                String  attr = bn.getNodeName(iNode);
-                for (int iValue = 0; iValue < bn.getCardinality(iNode); ++iValue) {
+            for (int iNode = 0, nrOfNodes = bn.getNrOfNodes(); iNode < nrOfNodes; ++iNode) {
+                String  att = bn.getNodeName(iNode);
+                for (int iValue = 0, cardinalityINode = bn.getCardinality(iNode); iValue < cardinalityINode; ++iValue) {
                     String _val = bn.getNodeValue(iNode, iValue);
                     String val = trim_quotation(_val);
-                    String childId = attr + ": " + val;
+                    String childId = att + ": " + val;
 
-                    for (int iParent = 0; iParent < bn.getNrOfParents(iNode); ++iParent) {
+                    for (int iParent = 0, nrOfParents = bn.getNrOfParents(iNode); iParent < nrOfParents; ++iParent) {
                         int parent = bn.getParent(iNode, iParent);
-                        String attrParent = bn.getNodeName(parent);
-                        for (int m = 0; m < bn.getCardinality(parent); ++m) {
+                        String attParent = bn.getNodeName(parent);
+                        for (int m = 0, cardinalityParent = bn.getCardinality(parent); m < cardinalityParent; ++m) {
                             String _valParent = bn.getNodeValue(parent, m);
                             String valParent = trim_quotation(_valParent);
-                            String parentId = attrParent + ": " + valParent;
+                            String parentId = attParent + ": " + valParent;
                             JSONObject link = new JSONObject();
                             double[] cpt = new double[4];
                             cpt[0] = (double)priorMap.get(childId) / numInstances;
@@ -290,17 +331,17 @@ public class Bayes {
 
                             int cpt2_p = 0, cpt2_c = 0, cpt3_p = 0, cpt3_c = 0;
 
-                            for (int a = 0; a < data.numInstances(); ++a) {
+                            for (int a = 0; a < numInstances; ++a) {
                                 Instance instance = data.instance(a);
 
-                                if (instance.stringValue(data.attribute(attrParent)).equals(_valParent)) {
+                                if (instance.stringValue(data.attribute(attParent)).equals(_valParent)) {
                                     cpt2_p++;
-                                    if (instance.stringValue(data.attribute(attr)).equals(_val)) {
+                                    if (instance.stringValue(data.attribute(att)).equals(_val)) {
                                         cpt2_c++;
                                     }
                                 } else {
                                     cpt3_p++;
-                                    if (instance.stringValue(data.attribute(attr)).equals(_val)) {
+                                    if (instance.stringValue(data.attribute(att)).equals(_val)) {
                                         cpt3_c++;
                                     }
                                 }
@@ -324,7 +365,7 @@ public class Bayes {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return gbn.toJSONString();
+        return gbn;
     }
 
     /**
@@ -332,7 +373,8 @@ public class Bayes {
      * @param args
      */
     public static void main(String[] args) {
-//        Bayes bn = new Bayes();
+        Bayes bn = new Bayes();
+        bn.getLocalGBN();
 //        System.out.println(bn.getAttDistribution("wei", "numerical"));
 //        System.out.println(bn.getAttDistribution("cat", "categorical"));
     }

@@ -25,8 +25,6 @@ public class UserController {
 
     private JSONObject attrList;
 
-    private String localSearchMethod;
-
     private void initAttrList(){
         this.attrList = new JSONObject();
         this.attrList.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
@@ -48,7 +46,6 @@ public class UserController {
 
     UserController() {
         initAttrList();
-        this.localSearchMethod = null;
     }
 
     @RequestMapping//Home
@@ -87,7 +84,6 @@ public class UserController {
         String method = request.getParameter("method");
         Bayes bn = new Bayes();
         if(method != null){
-            this.localSearchMethod = method;
             return bn.getGlobalGBN(method);
         } else{
             return bn.getGlobalGBN();
@@ -96,12 +92,7 @@ public class UserController {
 
     @RequestMapping(value = "/get_local_gbn", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
-        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         Bayes bn = new Bayes();
-        if(this.localSearchMethod != null) {
-            return bn.getLocalGBN(selectAtt, this.localSearchMethod);
-        } else{
-            return bn.getLocalGBN(selectAtt);
-        }
+        return bn.getLocalGBN();
     }
 }
