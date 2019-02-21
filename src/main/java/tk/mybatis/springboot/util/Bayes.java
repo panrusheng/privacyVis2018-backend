@@ -152,7 +152,7 @@ public class Bayes {
         Map<Integer, Set<Integer>> linksMapSourceKey = new HashMap<>();
         Map<Integer, Set<Integer>> linksMapTargetKey = new HashMap<>();
         Map<String, Integer> nodesMap = new HashMap<>();
-        Set<JSONArray> localGBNs = new HashSet<>();
+        Map<JSONArray, Integer> localGBNs = new HashMap<>();
         for(Object _node : nodesList){
             JSONObject node = (JSONObject) _node;
             nodesMap.put((String)node.get("id"), (Integer)node.get("eventNo"));
@@ -208,11 +208,27 @@ public class Bayes {
                     }
                 }
             }
-            localGBNs.add(links);
+            if(localGBNs.containsKey(links)){
+                Integer currentValue = localGBNs.get(links);
+                localGBNs.put(links, currentValue+1);
+            }else {
+                localGBNs.put(links, 1);
+            }
         }
+
+        List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
+        Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
+            @Override
+            public int compare(Map.Entry<JSONArray, Integer> o1, Map.Entry<JSONArray, Integer> o2) {
+                return o2.getValue()-o1.getValue();
+            }
+        });
         JSONArray jsonLocalGBNs = new JSONArray();
-        for(JSONArray gbn : localGBNs){
-            jsonLocalGBNs.add(gbn);
+        for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
+            JSONObject localGBN = new JSONObject();
+            localGBN.put("group_frequency",gbn.getValue());
+            localGBN.put("gbn_structure", gbn.getKey());
+            jsonLocalGBNs.add(localGBN);
         }
         return jsonLocalGBNs.toJSONString();
     }
