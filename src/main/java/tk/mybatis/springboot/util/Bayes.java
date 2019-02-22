@@ -19,10 +19,44 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
+
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
     RepeatedHillClimber, SimulatedAnnealing, TabuSearch, TAN
 }
+
+class Tuple {
+    private int target;
+
+    private double value;
+
+    Tuple(int target, double value){
+        setTarget(target);
+        setValue(value);
+    }
+
+    private void setTarget(int target) {
+        this.target = target;
+    }
+
+    public int getTarget() {
+        return target;
+    }
+
+    private void setValue(double value) {
+        this.value = value;
+    }
+
+    public double getValue() {
+        return value;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return ((Tuple)obj).getTarget() == this.target;
+    }
+}
+
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
@@ -30,7 +64,7 @@ public class Bayes {
     private Instances data;
     private List<String> allAttList;
     private JSONObject globalGBN;
-    private Map<Integer, Set<Integer>> linksMap;
+    private Map<Integer, Set<Tuple>> linksMap;
     private BiMap<String, Integer> nodesMap;
     private void initOriginalData(){
         try {
@@ -290,12 +324,13 @@ public class Bayes {
             JSONObject link = (JSONObject) _link;
             Integer source = (Integer)link.get("source");
             Integer target = (Integer)link.get("target");
+            Double value = (Double)link.get("value");
             if(this.linksMap.containsKey(source)){
-                this.linksMap.get(source).add(target);
+                this.linksMap.get(source).add(new Tuple(target, value));
             }else {
-                Set<Integer> valueSet = new HashSet();
-                valueSet.add(target);
-                this.linksMap.put(source, valueSet);
+                Set<Tuple> tupleSet = new HashSet();
+                tupleSet.add(new Tuple(target, value));
+                this.linksMap.put(source, tupleSet);
             }
         }
         return gbn.toJSONString();
@@ -333,11 +368,12 @@ public class Bayes {
             for(String att : attList){
                 int eventNo = entityEventList.get(att);
                 if(linksMap.containsKey(eventNo)){
-                    for(int target : linksMap.get(eventNo)){
-                        if(entityEventList.containsValue(target)) {
+                    for(Tuple tuple : linksMap.get(eventNo)){
+                        if(entityEventList.containsValue(tuple.getTarget())) {
                             JSONObject link = new JSONObject();
                             link.put("source", eventNo);
-                            link.put("target", target);
+                            link.put("target", tuple.getTarget());
+                            link.put("value", tuple.getValue());
                             links.add(link);
                         }
                     }
