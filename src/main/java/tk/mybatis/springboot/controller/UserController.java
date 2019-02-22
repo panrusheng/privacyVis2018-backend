@@ -16,6 +16,7 @@ import tk.mybatis.springboot.util.MyMath;
 
 import javax.servlet.http.HttpServletRequest;
 
+@CrossOrigin
 @RestController
 @RequestMapping("/api")
 public class UserController {
@@ -85,9 +86,9 @@ public class UserController {
     public String get_gbn(HttpServletRequest request){
         String method = request.getParameter("method");
         if(method != null){
-            return bn.getGlobalGBN(method);
+            return this.bn.getGlobalGBN(method);
         } else{
-            return bn.getGlobalGBN();
+            return this.bn.getGlobalGBN();
         }
     }
 
@@ -95,9 +96,9 @@ public class UserController {
     public String get_local_gbn(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         if(selectAtt != null){
-            return bn.getRecommendation(selectAtt);
+            return this.bn.getRecommendation(selectAtt);
         }else{
-            return bn.getRecommendation();
+            return this.bn.getRecommendation();
         }
     }
 }

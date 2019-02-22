@@ -1,6 +1,5 @@
 package tk.mybatis.springboot.util;
 
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 
@@ -31,8 +30,7 @@ public class Bayes {
     private Instances data;
     private List<String> allAttList;
     private JSONObject globalGBN;
-    private Map<Integer, Set<Integer>> linksMapSourceKey;
-    private Map<Integer, Set<Integer>> linksMapTargetKey;
+    private Map<Integer, Set<Integer>> linksMap;
     private BiMap<String, Integer> nodesMap;
     private void initOriginalData(){
         try {
@@ -65,18 +63,6 @@ public class Bayes {
         for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
             allAttList.add(this.data.attribute(i).name());
         }
-    }
-
-    /**
-     * remove the quotation on the start and the end if it has
-     * @param value
-     * @return
-     */
-    private String trim_quotation(String value){
-        if(value.startsWith("\'")){
-            value = value.substring(1, value.length()-1);
-        }
-        return value;
     }
 
     /**
@@ -294,8 +280,8 @@ public class Bayes {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        this.linksMapSourceKey = new HashMap<>();
-        this.linksMapTargetKey = new HashMap<>();
+        this.linksMap = new HashMap<>();
+        this.linksMap = new HashMap<>();
         this.nodesMap = HashBiMap.create();
         for(Object _node : nodeList){
             JSONObject node = (JSONObject) _node;
@@ -305,19 +291,12 @@ public class Bayes {
             JSONObject link = (JSONObject) _link;
             Integer source = (Integer)link.get("source");
             Integer target = (Integer)link.get("target");
-            if(this.linksMapSourceKey.containsKey(source)){
-                this.linksMapSourceKey.get(source).add(target);
+            if(this.linksMap.containsKey(source)){
+                this.linksMap.get(source).add(target);
             }else {
                 Set<Integer> valueSet = new HashSet();
                 valueSet.add(target);
-                this.linksMapSourceKey.put(source, valueSet);
-            }
-            if(this.linksMapTargetKey.containsKey(target)){
-                this.linksMapTargetKey.get(target).add(source);
-            }else {
-                Set<Integer> valueSet = new HashSet();
-                valueSet.add(source);
-                this.linksMapTargetKey.put(target, valueSet);
+                this.linksMap.put(source, valueSet);
             }
         }
         return gbn.toJSONString();
@@ -329,7 +308,12 @@ public class Bayes {
 
     public String getRecommendation(List<String> attList){
         JSONObject recommendation = new JSONObject();
+
+        long startTime = System.nanoTime();
         recommendation.put("group", getLocalGBN(attList));
+        long endTime = System.nanoTime();
+        System.out.println("getLocalGBN运行时间： "+(endTime-startTime)/1e9+"s");
+
         recommendation.put("rec", "");
         return recommendation.toJSONString();
     }
@@ -349,22 +333,12 @@ public class Bayes {
             }
             for(String att : attList){
                 int eventNo = entityEventList.get(att);
-                if(linksMapSourceKey.containsKey(eventNo)){
-                    for(int target : linksMapSourceKey.get(eventNo)){
+                if(linksMap.containsKey(eventNo)){
+                    for(int target : linksMap.get(eventNo)){
                         if(entityEventList.containsValue(target)) {
                             JSONObject link = new JSONObject();
                             link.put("source", eventNo);
                             link.put("target", target);
-                            links.add(link);
-                        }
-                    }
-                }
-                if(linksMapTargetKey.containsKey(eventNo)){
-                    for(int source : linksMapTargetKey.get(eventNo)){
-                        if(entityEventList.containsValue((source))){
-                            JSONObject link = new JSONObject();
-                            link.put("source", source);
-                            link.put("target", eventNo);
                             links.add(link);
                         }
                     }
@@ -378,7 +352,6 @@ public class Bayes {
             }
         }
 
-        long startTime = System.nanoTime();
         List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
         Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
             @Override
@@ -386,8 +359,6 @@ public class Bayes {
                 return o2.getValue() - o1.getValue();
             }
         });
-        long endTime = System.nanoTime();
-        System.out.println("程序运行时间： "+(endTime-startTime)/1e9+"s");
 
         for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
             JSONObject localGBN = new JSONObject();
@@ -417,6 +388,18 @@ public class Bayes {
      * used for function test
      * @param args
      */
+    /**
+     * remove the quotation on the start and the end if it has
+     * @param value
+     * @return
+     */
+    private String trim_quotation(String value){
+        if(value.startsWith("\'")){
+            value = value.substring(1, value.length()-1);
+        }
+        return value;
+    }
+
     public static void main(String[] args) {
         Bayes bn = new Bayes();
         System.out.println(bn.getRecommendation());
