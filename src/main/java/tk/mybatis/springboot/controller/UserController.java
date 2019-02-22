@@ -23,29 +23,32 @@ public class UserController {
     @Autowired
     private UserService UserService;
 
-    private JSONObject attrList;
+    private JSONObject attList;
+
+    private Bayes bn;
 
     private void initAttrList(){
-        this.attrList = new JSONObject();
-        this.attrList.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
-        this.attrList.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
-        this.attrList.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
-        this.attrList.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
-        this.attrList.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
-        this.attrList.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
-        this.attrList.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
-        this.attrList.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
-        this.attrList.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
-        this.attrList.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
-        this.attrList.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
-        this.attrList.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
-        this.attrList.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
-        this.attrList.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
-        this.attrList.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+        this.attList = new JSONObject();
+        this.attList.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
+        this.attList.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
+        this.attList.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
+        this.attList.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
+        this.attList.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
+        this.attList.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
+        this.attList.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
+        this.attList.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
+        this.attList.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
+        this.attList.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
+        this.attList.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
+        this.attList.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
+        this.attList.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
+        this.attList.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
+        this.attList.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
     }
 
     UserController() {
         initAttrList();
+        bn = new Bayes();
     }
 
     @RequestMapping//Home
@@ -56,7 +59,7 @@ public class UserController {
     @RequestMapping(value = "/load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
         JSONObject response = new JSONObject();
-        response.put("attrList",this.attrList);
+        response.put("attList",this.attList);
         return response.toJSONString();
     }
 
@@ -64,15 +67,14 @@ public class UserController {
     public String get_attribute_distribution(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         JSONArray attributes = new JSONArray();
-        Bayes bn = new Bayes();
         for(String att: selectAtt){
-            JSONObject attrObj = new JSONObject();
-            String type = (String)((JSONObject) this.attrList.get(att)).get("type");
+            JSONObject attObj = new JSONObject();
+            String type = (String)((JSONObject) this.attList.get(att)).get("type");
             JSONArray dataList = bn.getAttDistribution(att, type);
-            attrObj.put("attributeName",att);
-            attrObj.put("type",type);
-            attrObj.put("data",dataList);
-            attributes.add(attrObj);
+            attObj.put("attributeName",att);
+            attObj.put("type",type);
+            attObj.put("data",dataList);
+            attributes.add(attObj);
         }
         JSONObject response = new JSONObject();
         response.put("attributes", attributes);
@@ -82,7 +84,6 @@ public class UserController {
     @RequestMapping(value = "/get_gbn", method = RequestMethod.POST)
     public String get_gbn(HttpServletRequest request){
         String method = request.getParameter("method");
-        Bayes bn = new Bayes();
         if(method != null){
             return bn.getGlobalGBN(method);
         } else{
@@ -90,9 +91,13 @@ public class UserController {
         }
     }
 
-    @RequestMapping(value = "/recommendation", method = RequestMethod.POST)
+    @RequestMapping(value = "/get_recommendation", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
-        Bayes bn = new Bayes();
-        return bn.recommendGroup();
+        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
+        if(selectAtt != null){
+            return bn.getRecommendation(selectAtt);
+        }else{
+            return bn.getRecommendation();
+        }
     }
 }

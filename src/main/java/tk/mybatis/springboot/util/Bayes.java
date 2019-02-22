@@ -29,7 +29,11 @@ public class Bayes {
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private Instances originalData;
     private Instances data;
+    private List<String> allAttList;
     private JSONObject globalGBN;
+    private Map<Integer, Set<Integer>> linksMapSourceKey;
+    private Map<Integer, Set<Integer>> linksMapTargetKey;
+    private BiMap<String, Integer> nodesMap;
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
@@ -50,7 +54,6 @@ public class Bayes {
             e.printStackTrace();
         }
     }
-
     public Bayes(){
         this(2);
     }
@@ -58,6 +61,10 @@ public class Bayes {
     public Bayes(int discretizeBins){
         initData(discretizeBins);
         this.globalGBN = null;
+        allAttList = new ArrayList<>();
+        for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
+            allAttList.add(this.data.attribute(i).name());
+        }
     }
 
     /**
@@ -139,135 +146,10 @@ public class Bayes {
      * get global GBN of bayes net with given localSearchAlgorithm
      * @return
      */
-    public String getGlobalGBN(String localSearchAlgorithm){
-        if(this.globalGBN == null){
-            this.globalGBN = getGBN(this.data, LocalSearchAlgorithm.valueOf(localSearchAlgorithm));
+    public String getGlobalGBN(String localSearchAlgorithm) {
+        if(this.globalGBN != null){
+            return this.globalGBN.toJSONString();
         }
-        return this.globalGBN.toJSONString();
-    }
-
-    public String recommendGroup(){
-        JSONObject recommendation = new JSONObject();
-        recommendation.put("group", getLocalGBN());
-        recommendation.put("rec", "");
-        return recommendation.toJSONString();
-    }
-
-    private JSONArray getLocalGBN(){
-        if(this.globalGBN == null){
-            getGlobalGBN();
-        }
-        JSONArray nodesList = (JSONArray) this.globalGBN.get("nodes");
-        JSONArray linksList = (JSONArray) this.globalGBN.get("links");
-        Map<Integer, Set<Integer>> linksMapSourceKey = new HashMap<>();
-        Map<Integer, Set<Integer>> linksMapTargetKey = new HashMap<>();
-        BiMap<String, Integer> nodesMap = HashBiMap.create();
-        Map<JSONArray, Integer> localGBNs = new HashMap<>();
-        JSONArray jsonLocalGBNs = new JSONArray();
-        for(Object _node : nodesList){
-            JSONObject node = (JSONObject) _node;
-            nodesMap.put((String)node.get("id"), (Integer)node.get("eventNo"));
-        }
-        for(Object _link : linksList){
-            JSONObject link = (JSONObject) _link;
-            Integer source = (Integer)link.get("source");
-            Integer target = (Integer)link.get("target");
-            if(linksMapSourceKey.containsKey(source)){
-                linksMapSourceKey.get(source).add(target);
-            }else {
-                Set<Integer> valueSet = new HashSet();
-                valueSet.add(target);
-                linksMapSourceKey.put(source, valueSet);
-            }
-
-            if(linksMapTargetKey.containsKey(target)){
-                linksMapTargetKey.get(target).add(source);
-            }else {
-                Set<Integer> valueSet = new HashSet();
-                valueSet.add(source);
-                linksMapTargetKey.put(target, valueSet);
-            }
-        }
-        for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
-            Instance instance = data.instance(i);
-            JSONArray links = new JSONArray();
-            int numAttributes = data.numAttributes();
-            ArrayList<Integer> entityEventList =  new ArrayList<>();
-            for(int j = 0; j < numAttributes; j++){
-                entityEventList.add(nodesMap.get(data.attribute(j).name() + ": " + trim_quotation(instance.stringValue(j))));
-            }
-            for(int j = 0; j < numAttributes; j++){
-                int eventNo = entityEventList.get(j);
-                if(linksMapSourceKey.containsKey(eventNo)){
-                    for(int target : linksMapSourceKey.get(eventNo)){
-                        if(entityEventList.contains(target)) {
-                            JSONObject link = new JSONObject();
-                            link.put("source", eventNo);
-                            link.put("target", target);
-                            links.add(link);
-                        }
-                    }
-                }
-                if(linksMapTargetKey.containsKey(eventNo)){
-                    for(int source : linksMapTargetKey.get(eventNo)){
-                        if(entityEventList.contains((source))){
-                            JSONObject link = new JSONObject();
-                            link.put("source", source);
-                            link.put("target", eventNo);
-                            links.add(link);
-                        }
-                    }
-                }
-            }
-            if(localGBNs.containsKey(links)){
-                Integer currentValue = localGBNs.get(links);
-                localGBNs.put(links, currentValue+1);
-            }else {
-                localGBNs.put(links, 1);
-            }
-        }
-
-        long startTime = System.nanoTime();
-        List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
-        Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
-            @Override
-            public int compare(Map.Entry<JSONArray, Integer> o1, Map.Entry<JSONArray, Integer> o2) {
-                return o2.getValue() - o1.getValue();
-            }
-        });
-        long endTime = System.nanoTime();
-        System.out.println("程序运行时间： "+(endTime-startTime)/1e9+"s");
-
-        for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
-            JSONObject localGBN = new JSONObject();
-            JSONArray links = gbn.getKey();
-            Set<Integer> nodesSet = new HashSet<>();
-            JSONArray nodes = new JSONArray();
-            for(Object _link: links){
-                JSONObject link = (JSONObject) _link;
-                nodesSet.add((Integer) link.get("source"));
-                nodesSet.add((Integer) link.get("target"));
-            }
-            for(Integer _node : nodesSet){
-                JSONObject node = new JSONObject();
-                node.put("id", nodesMap.inverse().get(_node));
-                node.put("value", 1);
-                nodes.add(node);
-            }
-            localGBN.put("num", gbn.getValue());
-            localGBN.put("links", links);
-            localGBN.put("nodes", nodes);
-            jsonLocalGBNs.add(localGBN);
-        }
-        return jsonLocalGBNs;
-    }
-
-    /**
-     * get GBN with given data and local search algorithm
-     * @param data
-     * @return
-     */
-    private JSONObject getGBN(Instances data, LocalSearchAlgorithm localSearchAlgorithm) {
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
@@ -275,7 +157,7 @@ public class Bayes {
         try {
             BayesNet bn = new BayesNet();
 
-            switch (localSearchAlgorithm){
+            switch (LocalSearchAlgorithm.valueOf(localSearchAlgorithm)){
                 case K2:{
                     K2 algorithm = new K2();
                     algorithm.setMaxNrOfParents(data.numAttributes() - 1);
@@ -408,10 +290,127 @@ public class Bayes {
 
             gbn.put("nodes",nodeList);
             gbn.put("links",linkList);
+            this.globalGBN = gbn;
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return gbn;
+        this.linksMapSourceKey = new HashMap<>();
+        this.linksMapTargetKey = new HashMap<>();
+        this.nodesMap = HashBiMap.create();
+        for(Object _node : nodeList){
+            JSONObject node = (JSONObject) _node;
+            this.nodesMap.put((String)node.get("id"), (Integer)node.get("eventNo"));
+        }
+        for(Object _link : linkList){
+            JSONObject link = (JSONObject) _link;
+            Integer source = (Integer)link.get("source");
+            Integer target = (Integer)link.get("target");
+            if(this.linksMapSourceKey.containsKey(source)){
+                this.linksMapSourceKey.get(source).add(target);
+            }else {
+                Set<Integer> valueSet = new HashSet();
+                valueSet.add(target);
+                this.linksMapSourceKey.put(source, valueSet);
+            }
+            if(this.linksMapTargetKey.containsKey(target)){
+                this.linksMapTargetKey.get(target).add(source);
+            }else {
+                Set<Integer> valueSet = new HashSet();
+                valueSet.add(source);
+                this.linksMapTargetKey.put(target, valueSet);
+            }
+        }
+        return gbn.toJSONString();
+    }
+
+    public String getRecommendation() {
+        return getRecommendation(this.allAttList);
+    }
+
+    public String getRecommendation(List<String> attList){
+        JSONObject recommendation = new JSONObject();
+        recommendation.put("group", getLocalGBN(attList));
+        recommendation.put("rec", "");
+        return recommendation.toJSONString();
+    }
+
+    private JSONArray getLocalGBN(List<String> attList){
+        if(this.globalGBN == null){
+            getGlobalGBN();
+        }
+        Map<JSONArray, Integer> localGBNs = new HashMap<>();
+        JSONArray jsonLocalGBNs = new JSONArray();
+        for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
+            Instance instance = data.instance(i);
+            JSONArray links = new JSONArray();
+            Map<String, Integer> entityEventList = new HashMap();
+            for(String att : attList){
+                entityEventList.put(att, nodesMap.get(att + ": " + trim_quotation(instance.stringValue(data.attribute(att)))));
+            }
+            for(String att : attList){
+                int eventNo = entityEventList.get(att);
+                if(linksMapSourceKey.containsKey(eventNo)){
+                    for(int target : linksMapSourceKey.get(eventNo)){
+                        if(entityEventList.containsValue(target)) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", eventNo);
+                            link.put("target", target);
+                            links.add(link);
+                        }
+                    }
+                }
+                if(linksMapTargetKey.containsKey(eventNo)){
+                    for(int source : linksMapTargetKey.get(eventNo)){
+                        if(entityEventList.containsValue((source))){
+                            JSONObject link = new JSONObject();
+                            link.put("source", source);
+                            link.put("target", eventNo);
+                            links.add(link);
+                        }
+                    }
+                }
+            }
+            if(localGBNs.containsKey(links)){
+                Integer currentValue = localGBNs.get(links);
+                localGBNs.put(links, currentValue+1);
+            }else {
+                localGBNs.put(links, 1);
+            }
+        }
+
+        long startTime = System.nanoTime();
+        List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
+        Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
+            @Override
+            public int compare(Map.Entry<JSONArray, Integer> o1, Map.Entry<JSONArray, Integer> o2) {
+                return o2.getValue() - o1.getValue();
+            }
+        });
+        long endTime = System.nanoTime();
+        System.out.println("程序运行时间： "+(endTime-startTime)/1e9+"s");
+
+        for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
+            JSONObject localGBN = new JSONObject();
+            JSONArray links = gbn.getKey();
+            Set<Integer> nodesSet = new HashSet<>();
+            JSONArray nodes = new JSONArray();
+            for(Object _link: links){
+                JSONObject link = (JSONObject) _link;
+                nodesSet.add((Integer) link.get("source"));
+                nodesSet.add((Integer) link.get("target"));
+            }
+            for(Integer _node : nodesSet){
+                JSONObject node = new JSONObject();
+                node.put("id", nodesMap.inverse().get(_node));
+                node.put("value", 1);
+                nodes.add(node);
+            }
+            localGBN.put("num", gbn.getValue());
+            localGBN.put("links", links);
+            localGBN.put("nodes", nodes);
+            jsonLocalGBNs.add(localGBN);
+        }
+        return jsonLocalGBNs;
     }
 
     /**
@@ -420,7 +419,7 @@ public class Bayes {
      */
     public static void main(String[] args) {
         Bayes bn = new Bayes();
-        bn.getLocalGBN();
+        System.out.println(bn.getRecommendation());
 //        System.out.println(bn.getAttDistribution("wei", "numerical"));
 //        System.out.println(bn.getAttDistribution("cat", "categorical"));
     }
