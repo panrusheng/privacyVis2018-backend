@@ -239,9 +239,9 @@ public class Bayes {
                             String valParent = trim_quotation(_valParent);
                             String parentId = attParent + ": " + valParent;
                             JSONObject link = new JSONObject();
-                            double[] cpt = new double[4];
-                            cpt[0] = (double)priorMap.get(childId) / numInstances;
-                            cpt[1] = (double)priorMap.get(parentId) / numInstances;
+                            double[] cpt = new double[4]; //cpt = [ P(A), P(B), P(A|B), P(A|B') ]
+                            cpt[0] = (double)priorMap.get(childId) / numInstances; //P(A)
+                            cpt[1] = (double)priorMap.get(parentId) / numInstances; //P(B)
 
                             int cpt2_p = 0, cpt2_c = 0, cpt3_p = 0, cpt3_c = 0;
 
@@ -264,8 +264,8 @@ public class Bayes {
                             cpt[2] = (double) cpt2_c / cpt2_p;
                             cpt[3] = (double) cpt3_c / cpt3_p;
 
-                            link.put("source", eventNoMap.get(parentId));
-                            link.put("target", eventNoMap.get(childId));
+                            link.put("source", eventNoMap.get(parentId)); //P(A|B)
+                            link.put("target", eventNoMap.get(childId)); //P(A|B')
                             link.put("value", cpt[2]);
                             link.put("cpt", cpt);
                             linkList.add(link);
@@ -280,7 +280,6 @@ public class Bayes {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        this.linksMap = new HashMap<>();
         this.linksMap = new HashMap<>();
         this.nodesMap = HashBiMap.create();
         for(Object _node : nodeList){
