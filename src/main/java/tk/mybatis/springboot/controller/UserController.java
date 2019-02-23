@@ -5,14 +5,12 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.ModelAndView;
 import tk.mybatis.springboot.model.User;
 import tk.mybatis.springboot.service.UserService;
 
 import java.util.List;
 
 import tk.mybatis.springboot.util.Bayes;
-import tk.mybatis.springboot.util.MyMath;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -62,6 +60,12 @@ public class UserController {
         JSONObject response = new JSONObject();
         response.put("attList",this.attList);
         return response.toJSONString();
+    }
+
+    @RequestMapping(value = "set_selected_attribute", method = RequestMethod.POST)
+    public void set_selected_attribute(HttpServletRequest request){
+        List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
+        bn.setSelectedAttribute(selectAtt);
     }
 
     @RequestMapping(value = "/get_attribute_distribution", method = RequestMethod.POST)

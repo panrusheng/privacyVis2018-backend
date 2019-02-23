@@ -27,26 +27,21 @@ enum LocalSearchAlgorithm {
 
 class Tuple<T0, T1> {
     private T0 t0;
-
     private T1 t1;
 
     Tuple(T0 t0, T1 t1){
         setT0(t0);
         setT1(t1);
     }
-
     private void setT0(T0 t0) {
         this.t0 = t0;
     }
-
     public T0 getT0() {
         return t0;
     }
-
     private void setT1(T1 t1) {
         this.t1 = t1;
     }
-
     public T1 getT1() {
         return t1;
     }
@@ -62,7 +57,8 @@ public class Bayes {
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private Instances originalData;
     private Instances data;
-    private List<String> allAttList;
+    private List<String> allAttName;
+    private Map<String, Boolean> allAttSensitive;
     private JSONObject globalGBN;
     private Map<Integer, Set<Tuple<Integer, Double>>> linksMap;
     private BiMap<String, Integer> nodesMap;
@@ -93,9 +89,12 @@ public class Bayes {
     public Bayes(int discretizeBins){
         initData(discretizeBins);
         this.globalGBN = null;
-        allAttList = new ArrayList<>();
+        this.allAttName = new ArrayList();
+        this.allAttSensitive = new HashMap();
         for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
-            allAttList.add(this.data.attribute(i).name());
+            String attName = this.data.attribute(i).name();
+            this.allAttName.add(attName);
+            this.allAttSensitive.put(attName, false);
         }
     }
 
@@ -154,6 +153,11 @@ public class Bayes {
         return dataList;
     }
 
+    public void setSelectedAttribute(List<JSONObject> selectAtt){
+        for(JSONObject att : selectAtt){
+            this.allAttSensitive.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
+        }
+    }
     /**
      * get global GBN of bayes net
      * @return
@@ -337,7 +341,7 @@ public class Bayes {
     }
 
     public String getRecommendation() {
-        return getRecommendation(this.allAttList);
+        return getRecommendation(this.allAttName);
     }
 
     public String getRecommendation(List<String> attList){
