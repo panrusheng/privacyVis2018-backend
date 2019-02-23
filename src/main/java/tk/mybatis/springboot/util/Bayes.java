@@ -25,35 +25,35 @@ enum LocalSearchAlgorithm {
     RepeatedHillClimber, SimulatedAnnealing, TabuSearch, TAN
 }
 
-class Tuple {
-    private int target;
+class Tuple<T0, T1> {
+    private T0 t0;
 
-    private double value;
+    private T1 t1;
 
-    Tuple(int target, double value){
-        setTarget(target);
-        setValue(value);
+    Tuple(T0 t0, T1 t1){
+        setT0(t0);
+        setT1(t1);
     }
 
-    private void setTarget(int target) {
-        this.target = target;
+    private void setT0(T0 t0) {
+        this.t0 = t0;
     }
 
-    public int getTarget() {
-        return target;
+    public T0 getT0() {
+        return t0;
     }
 
-    private void setValue(double value) {
-        this.value = value;
+    private void setT1(T1 t1) {
+        this.t1 = t1;
     }
 
-    public double getValue() {
-        return value;
+    public T1 getT1() {
+        return t1;
     }
 
     @Override
     public boolean equals(Object obj) {
-        return ((Tuple)obj).getTarget() == this.target;
+        return ((Tuple)obj).getT0() == this.t0;
     }
 }
 
@@ -64,7 +64,7 @@ public class Bayes {
     private Instances data;
     private List<String> allAttList;
     private JSONObject globalGBN;
-    private Map<Integer, Set<Tuple>> linksMap;
+    private Map<Integer, Set<Tuple<Integer, Double>>> linksMap;
     private BiMap<String, Integer> nodesMap;
     private void initOriginalData(){
         try {
@@ -328,7 +328,7 @@ public class Bayes {
             if(this.linksMap.containsKey(source)){
                 this.linksMap.get(source).add(new Tuple(target, value));
             }else {
-                Set<Tuple> tupleSet = new HashSet();
+                Set<Tuple<Integer, Double>> tupleSet = new HashSet();
                 tupleSet.add(new Tuple(target, value));
                 this.linksMap.put(source, tupleSet);
             }
@@ -369,11 +369,11 @@ public class Bayes {
                 int eventNo = entityEventList.get(att);
                 if(linksMap.containsKey(eventNo)){
                     for(Tuple tuple : linksMap.get(eventNo)){
-                        if(entityEventList.containsValue(tuple.getTarget())) {
+                        if(entityEventList.containsValue(tuple.getT0())) {
                             JSONObject link = new JSONObject();
                             link.put("source", eventNo);
-                            link.put("target", tuple.getTarget());
-                            link.put("value", tuple.getValue());
+                            link.put("target", tuple.getT0());
+                            link.put("value", tuple.getT1());
                             links.add(link);
                         }
                     }
@@ -388,12 +388,8 @@ public class Bayes {
         }
 
         List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
-        Collections.sort(localGBNsList, new Comparator<Map.Entry<JSONArray, Integer>>() {
-            @Override
-            public int compare(Map.Entry<JSONArray, Integer> o1, Map.Entry<JSONArray, Integer> o2) {
-                return o2.getValue() - o1.getValue();
-            }
-        });
+        Collections.sort(localGBNsList, (o1, o2) -> o2.getValue() - o1.getValue());
+//        localGBNsList.sort(Comparator.comparing(Map.Entry<JSONArray, Integer>::getValue).reversed());
 
         for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
             JSONObject localGBN = new JSONObject();
@@ -407,6 +403,7 @@ public class Bayes {
             }
             for(Integer _node : nodesSet){
                 JSONObject node = new JSONObject();
+                node.put("eventNo",_node);
                 node.put("id", nodesMap.inverse().get(_node));
                 node.put("value", 1);
                 nodes.add(node);
@@ -420,10 +417,6 @@ public class Bayes {
     }
 
     /**
-     * used for function test
-     * @param args
-     */
-    /**
      * remove the quotation on the start and the end if it has
      * @param value
      * @return
@@ -435,6 +428,10 @@ public class Bayes {
         return value;
     }
 
+    /**
+     * used for function test
+     * @param args
+     */
     public static void main(String[] args) {
         Bayes bn = new Bayes();
         System.out.println(bn.getRecommendation());
