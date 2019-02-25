@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import eu.amidst.core.datastream.DataInstance;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.estimate.SimpleEstimator;
 import weka.classifiers.bayes.net.search.local.*;
@@ -18,7 +19,11 @@ import java.text.DecimalFormat;
 import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
@@ -58,10 +63,11 @@ public class Bayes {
     private Instances originalData;
     private Instances data;
     private List<String> allAttName;
-    private Map<String, Boolean> allAttSensitive;
+    private Map<String, Boolean> allAttSensitivity;
     private JSONObject globalGBN;
     private Map<Integer, Set<Tuple<Integer, Double>>> linksMap;
     private BiMap<String, Integer> nodesMap;
+
     private void initOriginalData(){
         try {
             BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
@@ -82,6 +88,7 @@ public class Bayes {
             e.printStackTrace();
         }
     }
+
     public Bayes(){
         this(2);
     }
@@ -90,11 +97,11 @@ public class Bayes {
         initData(discretizeBins);
         this.globalGBN = null;
         this.allAttName = new ArrayList();
-        this.allAttSensitive = new HashMap();
+        this.allAttSensitivity = new HashMap();
         for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
             String attName = this.data.attribute(i).name();
             this.allAttName.add(attName);
-            this.allAttSensitive.put(attName, false);
+            this.allAttSensitivity.put(attName, false);
         }
     }
 
@@ -153,10 +160,11 @@ public class Bayes {
         return dataList;
     }
 
-    public void setSelectedAttribute(List<JSONObject> selectAtt){
+    public String setSelectedAttribute(List<JSONObject> selectAtt){
         for(JSONObject att : selectAtt){
-            this.allAttSensitive.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
+            this.allAttSensitivity.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
         }
+        return new JSONObject((Map)(this.allAttSensitivity)).toJSONString();
     }
     /**
      * get global GBN of bayes net
@@ -346,22 +354,58 @@ public class Bayes {
 
     public String getRecommendation(List<String> attList){
         JSONObject recommendation = new JSONObject();
+        JSONArray localGBN = getLocalGBN(attList);
+        Instant start = Instant.now();
+        recommendation.put("group", localGBN);
+        recommendation.put("rec", getRec(attList, localGBN));
+        Instant end = Instant.now();
+        System.out.println("getRecommendation运行时间： " + Duration.between(start, end).toNanos() + "ns");
 
-        long startTime = System.nanoTime();
-        recommendation.put("group", getLocalGBN(attList));
-        long endTime = System.nanoTime();
-        System.out.println("getLocalGBN运行时间： "+(endTime-startTime)/1e9+"s");
-
-        recommendation.put("rec", "");
         return recommendation.toJSONString();
     }
 
+    private JSONArray getRec(List<String> attList, JSONArray localGBN){
+        JSONArray rec = new JSONArray();
+        for(Map.Entry<String, Boolean> att: this.allAttSensitivity.entrySet()){
+            double numerator = 0.0, denominator = 0.0, pr_condition;
+
+            //Todo
+            try{
+                pr_condition = numerator / denominator;
+            } catch (ArithmeticException e){
+                System.out.println("Can't divide  by zero");
+            }
+        }
+        for(Object _group: localGBN){
+            JSONObject group = (JSONObject) _group;
+            JSONArray nodes = group.getJSONArray("nodes");
+
+        }
+//        JSONArray top3rec4group = new JSONArray();
+//        Map preserved = this.allAttSensitivity.entrySet().parallelStream()
+//                .filter(Map.Entry::getValue)
+//                .peek(d->d.setValue(preserved(d.getKey())))
+//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return rec;
+    }
+
+    private Boolean preserved(DataInstance instance){
+        boolean protects = false;
+        double delta = 0.1;
+        //Todo: how to record the represent instance of the group
+        return protects;
+    }
+
+    /**
+     * get local GBN of bayes net
+     * @return
+     */
     private JSONArray getLocalGBN(List<String> attList){
         if(this.globalGBN == null){
             getGlobalGBN();
         }
-        Map<JSONArray, Integer> localGBNs = new HashMap<>();
-        JSONArray jsonLocalGBNs = new JSONArray();
+        Map<JSONArray, Integer> localGBN = new HashMap<>();
+        JSONArray jsonLocalGBN = new JSONArray();
         for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
             Instance instance = data.instance(i);
             JSONArray links = new JSONArray();
@@ -383,20 +427,20 @@ public class Bayes {
                     }
                 }
             }
-            if(localGBNs.containsKey(links)){
-                Integer currentValue = localGBNs.get(links);
-                localGBNs.put(links, currentValue+1);
+            if(localGBN.containsKey(links)){
+                Integer currentValue = localGBN.get(links);
+                localGBN.put(links, currentValue+1);
             }else {
-                localGBNs.put(links, 1);
+                localGBN.put(links, 1);
             }
         }
 
-        List<Map.Entry<JSONArray, Integer>> localGBNsList = new ArrayList<>(localGBNs.entrySet());
-        Collections.sort(localGBNsList, (o1, o2) -> o2.getValue() - o1.getValue());
-//        localGBNsList.sort(Comparator.comparing(Map.Entry<JSONArray, Integer>::getValue).reversed());
+        List<Map.Entry<JSONArray, Integer>> localGBNList = new ArrayList<>(localGBN.entrySet());
+        Collections.sort(localGBNList, (o1, o2) -> o2.getValue() - o1.getValue());
+//        localGBNList.sort(Comparator.comparing(Map.Entry<JSONArray, Integer>::getValue).reversed());
 
-        for(Map.Entry<JSONArray, Integer> gbn: localGBNsList){
-            JSONObject localGBN = new JSONObject();
+        for(Map.Entry<JSONArray, Integer> gbn: localGBNList){
+            JSONObject group = new JSONObject();
             JSONArray links = gbn.getKey();
             Set<Integer> nodesSet = new HashSet<>();
             JSONArray nodes = new JSONArray();
@@ -412,12 +456,12 @@ public class Bayes {
                 node.put("value", 1);
                 nodes.add(node);
             }
-            localGBN.put("num", gbn.getValue());
-            localGBN.put("links", links);
-            localGBN.put("nodes", nodes);
-            jsonLocalGBNs.add(localGBN);
+            group.put("num", gbn.getValue());
+            group.put("links", links);
+            group.put("nodes", nodes);
+            jsonLocalGBN.add(group);
         }
-        return jsonLocalGBNs;
+        return jsonLocalGBN;
     }
 
     /**

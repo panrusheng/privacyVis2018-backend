@@ -55,7 +55,7 @@ public class UserController {
         return UserService.getAll();
     }
 
-    @RequestMapping(value = "/load_data", method = RequestMethod.POST)
+    @RequestMapping(value = "load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
         JSONObject response = new JSONObject();
         response.put("attList",this.attList);
@@ -63,12 +63,12 @@ public class UserController {
     }
 
     @RequestMapping(value = "set_selected_attribute", method = RequestMethod.POST)
-    public void set_selected_attribute(HttpServletRequest request){
+    public String set_selected_attribute(HttpServletRequest request){
         List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
-        bn.setSelectedAttribute(selectAtt);
+        return bn.setSelectedAttribute(selectAtt);
     }
 
-    @RequestMapping(value = "/get_attribute_distribution", method = RequestMethod.POST)
+    @RequestMapping(value = "get_attribute_distribution", method = RequestMethod.POST)
     public String get_attribute_distribution(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         JSONArray attributes = new JSONArray();
@@ -86,7 +86,7 @@ public class UserController {
         return response.toJSONString();
     }
 
-    @RequestMapping(value = "/get_gbn", method = RequestMethod.POST)
+    @RequestMapping(value = "get_gbn", method = RequestMethod.POST)
     public String get_gbn(HttpServletRequest request){
         String method = request.getParameter("method");
         if(method != null){
@@ -96,7 +96,7 @@ public class UserController {
         }
     }
 
-    @RequestMapping(value = "/get_recommendation", method = RequestMethod.POST)
+    @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         if(selectAtt != null){
