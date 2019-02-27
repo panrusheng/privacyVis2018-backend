@@ -59,10 +59,10 @@ public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private Instances originalData;
+    private JSONObject globalGBN;
     private Instances data;
     private List<String> allAttName;
     private Map<String, Boolean> allAttSensitivity;
-    private JSONObject globalGBN;
     private Map<Integer, Set<Tuple<Integer, Double>>> linksMap;
     private BiMap<String, Integer> nodesMap;
 
@@ -135,13 +135,6 @@ public class Bayes {
         return dataList;
     }
 
-    public String setSelectedAttribute(List<JSONObject> selectAtt){
-        for(JSONObject att : selectAtt){
-            this.allAttSensitivity.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
-        }
-        return new JSONObject((Map)(this.allAttSensitivity)).toJSONString();
-    }
-
     /**
      * get default global GBN of bayes net
      * @return
@@ -154,7 +147,7 @@ public class Bayes {
      * get global GBN of bayes net with given attributes
      * @return
      */
-    public String getGlobalGBN(List<String> attList){
+    public String getGlobalGBN(List<JSONObject> attList){
         return getGlobalGBN("K2", attList);
     }
 
@@ -163,9 +156,11 @@ public class Bayes {
      * @return
      */
     public String getGlobalGBN(String localSearchAlgorithm){
-        List<String> attList = new ArrayList<>();
+        List<JSONObject> attList = new ArrayList<>();
         for(int i = 0, numAttributes = this.originalData.numAttributes(); i < numAttributes; i++){
-            attList.add(this.originalData.attribute(i).name());
+            JSONObject att = new JSONObject();
+            att.put(this.originalData.attribute(i).name(), false);
+            attList.add(att);
         }
         return getGlobalGBN(localSearchAlgorithm, attList);
     }
@@ -174,9 +169,15 @@ public class Bayes {
      * get global GBN of bayes net with given localSearchAlgorithm & given attributes
      * @return
      */
-    public String getGlobalGBN(String localSearchAlgorithm, List<String> attList) {
+    public String getGlobalGBN(String localSearchAlgorithm, List<JSONObject> attList) {
         if(this.globalGBN != null){
             return this.globalGBN.toJSONString();
+        }
+        this.allAttName = new ArrayList();
+        this.allAttSensitivity = new HashMap();
+        for(JSONObject att : attList){
+            this.allAttSensitivity.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
+            this.allAttName.add((String)att.get("attName"));
         }
         try{
             Discretize discretize = new Discretize();
@@ -186,7 +187,7 @@ public class Bayes {
             this.data.setClassIndex(this.data.numAttributes() - 1);
 
             for(int i = 0, len_i = this.data.numAttributes(); i < len_i; i++){
-                if(!attList.contains(this.data.attribute(i).name())){
+                if(!this.allAttName.contains(this.data.attribute(i).name())){
                     this.data.deleteAttributeAt(i);
                     i--;
                     len_i--;
@@ -197,17 +198,10 @@ public class Bayes {
         }catch (Exception e) {
             e.printStackTrace();
         }
-        this.allAttName = new ArrayList();
-        this.allAttSensitivity = new HashMap();
-        for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
-            String attName = this.data.attribute(i).name();
-            this.allAttName.add(attName);
-            this.allAttSensitivity.put(attName, false);
-        }
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
-        DecimalFormat df = new DecimalFormat("#0.00");//To use: (String) df.format(Number);
+        DecimalFormat df = new DecimalFormat("#0.00"); // To use: (String) df.format(Number);
         try {
             BayesNet bn = new BayesNet();
 
@@ -391,7 +385,6 @@ public class Bayes {
         for(Map.Entry<String, Boolean> att: this.allAttSensitivity.entrySet()){
             double numerator = 0.0, denominator = 0.0, pr_condition;
 
-            //Todo
             try{
                 pr_condition = numerator / denominator;
             } catch (ArithmeticException e){
@@ -401,7 +394,6 @@ public class Bayes {
         for(Object _group: localGBN){
             JSONObject group = (JSONObject) _group;
             JSONArray nodes = group.getJSONArray("nodes");
-
         }
 //        JSONArray top3rec4group = new JSONArray();
 //        Map preserved = this.allAttSensitivity.entrySet().parallelStream()

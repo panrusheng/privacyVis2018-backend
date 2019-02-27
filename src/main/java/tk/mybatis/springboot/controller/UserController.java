@@ -62,12 +62,6 @@ public class UserController {
         return response.toJSONString();
     }
 
-    @RequestMapping(value = "set_selected_attribute", method = RequestMethod.POST)
-    public String set_selected_attribute(HttpServletRequest request){
-        List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
-        return bn.setSelectedAttribute(selectAtt);
-    }
-
     @RequestMapping(value = "get_attribute_distribution", method = RequestMethod.POST)
     public String get_attribute_distribution(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
@@ -88,7 +82,7 @@ public class UserController {
 
     @RequestMapping(value = "get_gbn", method = RequestMethod.POST)
     public String get_gbn(HttpServletRequest request){
-        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
+        List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
         String method = request.getParameter("method");
         if(selectAtt != null && method == null) {
             return this.bn.getGlobalGBN(selectAtt);
