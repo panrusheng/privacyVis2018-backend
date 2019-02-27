@@ -269,7 +269,7 @@ public class Bayes {
                 String att = bn.getNodeName(i);
                 for (int j = 0 , cardinality_i = bn.getCardinality(i); j < cardinality_i; ++j) {
                     JSONObject node = new JSONObject();
-                    String value = trim_quotation(bn.getNodeValue(i, j));
+                    String value = numericFilter(bn.getNodeValue(i, j));
                     node.put("attName", att);
                     node.put("id", att + ": " + value);
                     node.put("value", 1);
@@ -282,7 +282,7 @@ public class Bayes {
             for (int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; ++i) {
                 String attributeName = this.data.attribute(i).name();
                 for (int j = 0, numInstances = this.data.numInstances(); j < numInstances; ++j) {
-                    String id = attributeName + ": " + trim_quotation(this.data.instance(j).stringValue(i));
+                    String id = attributeName + ": " + numericFilter(this.data.instance(j).stringValue(i));
                     if (!priorMap.containsKey(id)) {
                         priorMap.put(id, 0);
                     }
@@ -296,7 +296,7 @@ public class Bayes {
                 String  att = bn.getNodeName(iNode);
                 for (int iValue = 0, cardinalityINode = bn.getCardinality(iNode); iValue < cardinalityINode; ++iValue) {
                     String _val = bn.getNodeValue(iNode, iValue);
-                    String val = trim_quotation(_val);
+                    String val = numericFilter(_val);
                     String childId = att + ": " + val;
 
                     for (int iParent = 0, nrOfParents = bn.getNrOfParents(iNode); iParent < nrOfParents; ++iParent) {
@@ -304,7 +304,7 @@ public class Bayes {
                         String attParent = bn.getNodeName(parent);
                         for (int m = 0, cardinalityParent = bn.getCardinality(parent); m < cardinalityParent; ++m) {
                             String _valParent = bn.getNodeValue(parent, m);
-                            String valParent = trim_quotation(_valParent);
+                            String valParent = numericFilter(_valParent);
                             String parentId = attParent + ": " + valParent;
                             JSONObject link = new JSONObject();
                             double[] cpt = new double[4]; //cpt = [ P(A), P(B), P(A|B), P(A|B') ]
@@ -433,7 +433,7 @@ public class Bayes {
             JSONArray links = new JSONArray();
             Map<String, Integer> entityEventList = new HashMap();
             for(String att : attList){
-                entityEventList.put(att, nodesMap.get(att + ": " + trim_quotation(instance.stringValue(data.attribute(att)))));
+                entityEventList.put(att, nodesMap.get(att + ": " + numericFilter(instance.stringValue(data.attribute(att)))));
             }
             for(String att : attList){
                 int eventNo = entityEventList.get(att);
@@ -491,11 +491,18 @@ public class Bayes {
      * @param value
      * @return
      */
-    private String trim_quotation(String value){
+    private String numericFilter(String value){
         if(value.startsWith("\'")){
             value = value.substring(1, value.length()-1);
+            if(value.endsWith(")")){
+                return value.replaceAll("-inf[)]", "~inf)");
+            }else{
+                return value.replaceAll("-inf-", "-inf~");
+            }
         }
-        return value;
+        else{
+            return value;
+        }
     }
 
     /**
