@@ -88,11 +88,19 @@ public class UserController {
 
     @RequestMapping(value = "get_gbn", method = RequestMethod.POST)
     public String get_gbn(HttpServletRequest request){
+        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
         String method = request.getParameter("method");
-        if(method != null){
-            return this.bn.getGlobalGBN(method);
-        } else{
+        if(selectAtt != null && method == null) {
+            return this.bn.getGlobalGBN(selectAtt);
+        }
+        else if(selectAtt == null && method == null){
             return this.bn.getGlobalGBN();
+        }
+        else if(selectAtt == null && method != null){
+            return this.bn.getGlobalGBN(method);
+        }
+        else{
+            return this.bn.getGlobalGBN(method, selectAtt);
         }
     }
 

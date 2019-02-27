@@ -22,8 +22,6 @@ import java.io.FileReader;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
@@ -76,33 +74,10 @@ public class Bayes {
             e.printStackTrace();
         }
     }
-    private void initData(int discretizeBins){
-        try{
-            initOriginalData();
-            Discretize discretize = new Discretize();
-            discretize.setBins(discretizeBins);
-            discretize.setInputFormat(this.originalData);
-            this.data = Filter.useFilter(this.originalData, discretize);
-            this.data.setClassIndex(this.data.numAttributes() - 1);
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
     public Bayes(){
-        this(2);
-    }
-
-    public Bayes(int discretizeBins){
-        initData(discretizeBins);
+        initOriginalData();
         this.globalGBN = null;
-        this.allAttName = new ArrayList();
-        this.allAttSensitivity = new HashMap();
-        for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
-            String attName = this.data.attribute(i).name();
-            this.allAttName.add(attName);
-            this.allAttSensitivity.put(attName, false);
-        }
     }
 
     /**
@@ -166,8 +141,9 @@ public class Bayes {
         }
         return new JSONObject((Map)(this.allAttSensitivity)).toJSONString();
     }
+
     /**
-     * get global GBN of bayes net
+     * get default global GBN of bayes net
      * @return
      */
     public String getGlobalGBN(){
@@ -175,12 +151,58 @@ public class Bayes {
     }
 
     /**
+     * get global GBN of bayes net with given attributes
+     * @return
+     */
+    public String getGlobalGBN(List<String> attList){
+        return getGlobalGBN("K2", attList);
+    }
+
+    /**
      * get global GBN of bayes net with given localSearchAlgorithm
      * @return
      */
-    public String getGlobalGBN(String localSearchAlgorithm) {
+    public String getGlobalGBN(String localSearchAlgorithm){
+        List<String> attList = new ArrayList<>();
+        for(int i = 0, numAttributes = this.originalData.numAttributes(); i < numAttributes; i++){
+            attList.add(this.originalData.attribute(i).name());
+        }
+        return getGlobalGBN(localSearchAlgorithm, attList);
+    }
+
+    /**
+     * get global GBN of bayes net with given localSearchAlgorithm & given attributes
+     * @return
+     */
+    public String getGlobalGBN(String localSearchAlgorithm, List<String> attList) {
         if(this.globalGBN != null){
             return this.globalGBN.toJSONString();
+        }
+        try{
+            Discretize discretize = new Discretize();
+            discretize.setBins(2);
+            discretize.setInputFormat(originalData);
+            this.data = Filter.useFilter(originalData, discretize);
+            this.data.setClassIndex(this.data.numAttributes() - 1);
+
+            for(int i = 0, len_i = this.data.numAttributes(); i < len_i; i++){
+                if(!attList.contains(this.data.attribute(i).name())){
+                    this.data.deleteAttributeAt(i);
+                    i--;
+                    len_i--;
+                }else{
+                    this.data.setClassIndex(i);
+                }
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+        this.allAttName = new ArrayList();
+        this.allAttSensitivity = new HashMap();
+        for(int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; i++){
+            String attName = this.data.attribute(i).name();
+            this.allAttName.add(attName);
+            this.allAttSensitivity.put(attName, false);
         }
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
@@ -192,7 +214,7 @@ public class Bayes {
             switch (LocalSearchAlgorithm.valueOf(localSearchAlgorithm)){
                 case K2:{
                     K2 algorithm = new K2();
-                    algorithm.setMaxNrOfParents(data.numAttributes() - 1);
+                    algorithm.setMaxNrOfParents(this.data.numAttributes() - 1);
                     algorithm.setInitAsNaiveBayes(false);
                     bn.setSearchAlgorithm(algorithm);
                 }break;
@@ -235,7 +257,7 @@ public class Bayes {
             estimator.setAlpha(0.5);
             bn.setEstimator(estimator);
 
-            bn.buildClassifier(data);
+            bn.buildClassifier(this.data);
             bn.buildStructure();
             bn.estimateCPTs();
 
@@ -257,10 +279,10 @@ public class Bayes {
                 }
             }
 
-            for (int i = 0, numAttributes = data.numAttributes(); i < numAttributes; ++i) {
-                String attributeName = data.attribute(i).name();
-                for (int j = 0, numInstances = data.numInstances(); j < numInstances; ++j) {
-                    String id = attributeName + ": " + trim_quotation(data.instance(j).stringValue(i));
+            for (int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; ++i) {
+                String attributeName = this.data.attribute(i).name();
+                for (int j = 0, numInstances = this.data.numInstances(); j < numInstances; ++j) {
+                    String id = attributeName + ": " + trim_quotation(this.data.instance(j).stringValue(i));
                     if (!priorMap.containsKey(id)) {
                         priorMap.put(id, 0);
                     }
@@ -268,7 +290,7 @@ public class Bayes {
                 }
             }
 
-            int numInstances = data.numInstances();
+            int numInstances = this.data.numInstances();
 
             for (int iNode = 0, nrOfNodes = bn.getNrOfNodes(); iNode < nrOfNodes; ++iNode) {
                 String  att = bn.getNodeName(iNode);
@@ -292,16 +314,16 @@ public class Bayes {
                             int cpt2_p = 0, cpt2_c = 0, cpt3_p = 0, cpt3_c = 0;
 
                             for (int a = 0; a < numInstances; ++a) {
-                                Instance instance = data.instance(a);
+                                Instance instance = this.data.instance(a);
 
-                                if (instance.stringValue(data.attribute(attParent)).equals(_valParent)) {
+                                if (instance.stringValue(this.data.attribute(attParent)).equals(_valParent)) {
                                     cpt2_p++;
-                                    if (instance.stringValue(data.attribute(att)).equals(_val)) {
+                                    if (instance.stringValue(this.data.attribute(att)).equals(_val)) {
                                         cpt2_c++;
                                     }
                                 } else {
                                     cpt3_p++;
-                                    if (instance.stringValue(data.attribute(att)).equals(_val)) {
+                                    if (instance.stringValue(this.data.attribute(att)).equals(_val)) {
                                         cpt3_c++;
                                     }
                                 }
