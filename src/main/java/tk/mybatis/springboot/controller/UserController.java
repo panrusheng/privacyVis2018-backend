@@ -22,31 +22,9 @@ public class UserController {
     @Autowired
     private UserService UserService;
 
-    private JSONObject attList;
-
     private Bayes bn;
 
-    private void initAttrList(){
-        this.attList = new JSONObject();
-        this.attList.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
-        this.attList.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
-        this.attList.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
-        this.attList.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
-        this.attList.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
-        this.attList.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
-        this.attList.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
-        this.attList.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
-        this.attList.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
-        this.attList.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
-        this.attList.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
-        this.attList.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
-        this.attList.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
-        this.attList.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
-        this.attList.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
-    }
-
     UserController() {
-        initAttrList();
         bn = new Bayes();
     }
 
@@ -58,25 +36,7 @@ public class UserController {
     @RequestMapping(value = "load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
         JSONObject response = new JSONObject();
-        response.put("attList",this.attList);
-        return response.toJSONString();
-    }
-
-    @RequestMapping(value = "get_attribute_distribution", method = RequestMethod.POST)
-    public String get_attribute_distribution(HttpServletRequest request) {
-        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
-        JSONArray attributes = new JSONArray();
-        for(String att: selectAtt){
-            JSONObject attObj = new JSONObject();
-            String type = (String)((JSONObject) this.attList.get(att)).get("type");
-            JSONArray dataList = bn.getAttDistribution(att, type);
-            attObj.put("attributeName",att);
-            attObj.put("type",type);
-            attObj.put("data",dataList);
-            attributes.add(attObj);
-        }
-        JSONObject response = new JSONObject();
-        response.put("attributes", attributes);
+        response.put("attList",bn.getAttDiscription());
         return response.toJSONString();
     }
 
@@ -84,17 +44,11 @@ public class UserController {
     public String get_gbn(HttpServletRequest request){
         List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
         String method = request.getParameter("method");
-        if(selectAtt != null && method == null) {
-            return this.bn.getGlobalGBN(selectAtt);
-        }
-        else if(selectAtt == null && method == null){
-            return this.bn.getGlobalGBN();
-        }
-        else if(selectAtt == null && method != null){
-            return this.bn.getGlobalGBN(method);
+        if(method == null) {
+            return this.bn.getGBN(selectAtt);
         }
         else{
-            return this.bn.getGlobalGBN(method, selectAtt);
+            return this.bn.getGBN(method, selectAtt);
         }
     }
 
