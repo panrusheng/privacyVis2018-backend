@@ -52,13 +52,36 @@ public class UserController {
         }
     }
 
+    @RequestMapping(value = "edit_gbn", method = RequestMethod.POST)
+    public String edit_gbn(HttpServletRequest request) {
+        List<JSONObject> events = JSON.parseArray(request.getParameter("events"), JSONObject.class);
+        //Todo
+        return "";
+    }
+
     @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
         List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
-        if(selectAtt != null){
-            return this.bn.getRecommendation(selectAtt);
-        }else{
-            return this.bn.getRecommendation();
-        }
+        return this.bn.getRecommendation(selectAtt);
+    }
+
+    @RequestMapping(value = "get_result", method = RequestMethod.POST)
+    public String get_result(HttpServletRequest request) {
+        List<JSONObject> options = JSON.parseArray(request.getParameter("options"), JSONObject.class);
+        //Todo
+        return "";
+    }
+
+    @RequestMapping(value = "set_trim", method = RequestMethod.POST)
+    public String set_trim(HttpServletRequest request) {
+        List<JSONObject> options = JSON.parseArray(request.getParameter("options"), JSONObject.class);
+        //Todo
+        return "";
+    }
+
+    @RequestMapping(value = "get_test", method = RequestMethod.POST)
+    public String get_test(HttpServletRequest request) {
+        //Todo
+        return "";
     }
 }

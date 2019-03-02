@@ -19,8 +19,6 @@ import java.text.DecimalFormat;
 import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 
 enum LocalSearchAlgorithm {
@@ -93,7 +91,7 @@ class Truple<T0, T1, T2> {
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    private static final double sigma = 0.1;
+    private static final double sigma = 0.2;
     private JSONObject attDiscription;
     private Instances originalData;
     private JSONObject globalGBN;
@@ -163,19 +161,24 @@ public class Bayes {
         return gbn.toJSONString();
     }
 
-    public String getRecommendation() {
-        return getRecommendation(this.allAttName);
-    }
-
     public String getRecommendation(List<String> attList){
+        JSONArray recommendationList = new JSONArray();
         JSONObject recommendation = new JSONObject();
         JSONArray localGBN = getLocalGBN(attList);
-        Instant start = Instant.now();
-        recommendation.put("group", localGBN);
-        recommendation.put("rec", getRec(attList, localGBN));
-        Instant end = Instant.now();
-        System.out.println("getRecommendation运行时间： " + Duration.between(start, end).toNanos() + "ns");
-        return recommendation.toJSONString();
+//        Instant start = Instant.now();
+        int index = 0;
+        for(Object _group : localGBN){
+            JSONObject group = (JSONObject) _group;
+            recommendation.put("id", "id"+(index++));
+            recommendation.put("data", group.get("nodes"));
+            recommendation.put("recList", getRec(attList, group));
+        }
+
+//        Instant end = Instant.now();
+//        System.out.println("getRecommendation运行时间： " + Duration.between(start, end).toNanos() + "ns");
+
+        recommendationList.add(recommendation);
+        return recommendationList.toJSONString();
     }
 
     /**
@@ -199,8 +202,7 @@ public class Bayes {
             for(int i = 0, len_i = this.data.numAttributes(); i < len_i; i++){
                 if(!this.allAttName.contains(this.data.attribute(i).name())){
                     this.data.deleteAttributeAt(i);
-                    i--;
-                    len_i--;
+                    i--; len_i--;
                 }else{
                     this.data.setClassIndex(i);
                 }
@@ -214,7 +216,6 @@ public class Bayes {
         DecimalFormat df = new DecimalFormat("#0.00"); // To use: (String) df.format(Number);
         try {
             BayesNet bn = new BayesNet();
-
             switch (LocalSearchAlgorithm.valueOf(localSearchAlgorithm)){
                 case K2:{
                     K2 algorithm = new K2();
@@ -377,69 +378,31 @@ public class Bayes {
     /**
      *
      * @param attList
-     * @param localGBN
+     * @param group
      * @return
      */
-    private JSONArray getRec(List<String> attList, JSONArray localGBN) {
+    private JSONArray getRec(List<String> attList, JSONObject group) {
         JSONArray rec = new JSONArray();
-        Map<JSONArray, Integer> localGBNMap = new HashMap<>();
-        for (Object _group : localGBN) {
-            JSONObject group = (JSONObject) _group;
-            localGBNMap.put(group.getJSONArray("nodes"), group.getInteger("num"));
-        }
-        for (Object _group : localGBN) {
-            JSONArray top3rec4group = new JSONArray();
-            int numInstances = this.data.numInstances();
-            boolean protects = false;
-            JSONObject group = (JSONObject) _group;
-            JSONArray nodes = group.getJSONArray("nodes");
-            Map<String, Truple<String, Double, Integer>> nodesMap = new HashMap();// Map(attnName, Truple(eventName, value, eventNo))
-            for (Object _node : nodes) {
-                JSONObject node = (JSONObject) _node;
-                String[] eventArray = ((String) node.get("id")).split(": ");
-                nodesMap.put(eventArray[0], new Truple(eventArray[1], node.get("value"), node.get("value")));
+        JSONArray top3rec4group = new JSONArray();
+        int numInstances = this.data.numInstances();
+        JSONArray nodes = group.getJSONArray("nodes");
+        List<String> events = new ArrayList<>();
+        List<String> sensitiveEvents = new ArrayList<>();
+        for(Object _node : nodes){
+            String node = ((JSONObject) _node).getString("id");
+            if (this.allAttSensitivity.get(node.split(": ")[0])) { //sensitive atts which needs to be calculated
+                sensitiveEvents.add(node);
+            } else{
+                events.add(node);
             }
-            for (String att : attList) {
-                if (this.allAttSensitivity.get(att)) { //sensitive atts which needs to be calculated
-                    double numerator = group.getIntValue("num");
-                    double denominator = numerator;
-                    double pr_condition, pr_real;
-                    Enumeration eventValues = data.attribute(att).enumerateValues();
-                    String currentEventValue = nodesMap.get(att).getT0();
-                    while (eventValues.hasMoreElements()) {
-                        String eventValue = (String) eventValues.nextElement();
-                        if (!currentEventValue.equals(eventValue)) {
-                            JSONArray newNodes = (JSONArray) nodes.clone();
-                            int i = 0;
-                            for (Object _newNode : newNodes) {
-                                JSONObject newNode = (JSONObject) _newNode;
-                                String idValue = ((String) newNode.get("id"));
-                                if (idValue.startsWith(att)) {
-                                    JSONObject newEvent = new JSONObject();
-                                    String id = idValue.split(": ")[0] + ": " + eventValue;
-                                    newEvent.put("id", id);
-                                    newEvent.put("value", newNode.get("value"));
-                                    newEvent.put("eventNo", this.nodesMap.get(id));
-                                    newNodes.set(i, newEvent);
-                                }
-                                i++;
-                            }
-                            denominator += localGBNMap.get(newNodes);
-                        }
-                    }
-                    pr_condition = numerator / denominator;
-                    pr_real = (double)this.priorMap.get(att + ": " + currentEventValue) / numInstances;
-//                    protects = ((pr_condition - pr_real) >= -sigma*pr_real) && ((pr_condition - pr_real) <= sigma*pr_real);
-                    protects = Math.pow((pr_condition - pr_real), 2) <= Math.pow(sigma*pr_real, 2);
-                    System.out.println("isProtected: " + att + ": " +currentEventValue + ", " + protects + '(' + pr_condition + ", " + pr_real + ')');
+        }
+        Boolean[] protects = isProtected(events, sensitiveEvents);
+        for(int i = 0, len_i = protects.length; i < len_i; i++){
+            if(!protects[i]){
+                //Todo
+            }
+        }
 
-                }
-            }
-//        Map preserved = this.allAttSensitivity.entrySet().parallelStream()
-//                .filter(Map.Entry::getValue)
-//                .peek(d->d.setValue(preserved(d.getKey())))
-//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
         return rec;
     }
 
@@ -572,6 +535,60 @@ public class Bayes {
     }
 
     /**
+     * calculate the conditional probability : Pr(Es|En1, En2, ...)
+     * @param normalEvents: [En1, En2, ...]
+     * @param sensitiveEvents: [Es1, Es2, ...]
+     * @return isProtected: [protects(Es1), protects(Es2), ...]
+     */
+    private Boolean[] isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
+        int numSensitiveEvents = sensitiveEvents.size();
+        Boolean[] protects = new Boolean[numSensitiveEvents];
+        Arrays.fill(protects, true);
+        if (this.data == null) return protects;
+
+        int numInstances = data.numInstances();
+        int numNormalEvents = normalEvents.size();
+        double pr_real;
+        double[] numerator = new double[numSensitiveEvents];
+        double[] denominator = new double[numSensitiveEvents];
+        double[] pr_condition = new double[numSensitiveEvents];
+        Arrays.fill(numerator, 0.0);
+        Arrays.fill(denominator, 0.0);
+
+        for (Instance record : data) {
+            int i = 0;
+            for (; i < numNormalEvents; i++) {
+                String[] attEvent = normalEvents.get(i).split(": ");
+                String att = attEvent[0];
+                String event = attEvent[1];
+                if (!numericFilter(record.stringValue(this.data.attribute(att))).equals(event)) {
+                    break;
+                }
+            }
+            if(i == numNormalEvents){
+                for(int j = 0; j < numSensitiveEvents; j++){
+                    denominator[j]++;
+                    String[] attEvent = sensitiveEvents.get(j).split(": ");
+                    String att = attEvent[0];
+                    String event = attEvent[1];
+                    if(numericFilter(record.stringValue(this.data.attribute(att))).equals(event)){
+                        numerator[j]++;
+                    }
+                }
+            }
+        }
+        try {
+            for(int i = 0; i < numSensitiveEvents; i++){
+                pr_condition[i] = numerator[i] / denominator[i];
+                pr_real = (double)this.priorMap.get(sensitiveEvents.get(i)) / numInstances;
+                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(sigma*pr_real, 2);
+            }
+        } catch (ArithmeticException e) {
+            System.out.println("Can not be divided by zero.");
+        }
+        return protects;
+    }
+    /**
      * remove the quotation on the start and the end if it has
      * @param value
      * @return
@@ -596,7 +613,6 @@ public class Bayes {
      */
     public static void main(String[] args) {
         Bayes bn = new Bayes();
-//        System.out.println(bn.getRecommendation());
 //        System.out.println(bn.getAttDistribution("wei", "numerical"));
 //        System.out.println(bn.getAttDistribution("cat", "categorical"));
     }
