@@ -91,7 +91,8 @@ class Truple<T0, T1, T2> {
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    private static final double sigma = 0.2;
+    private static final double SIGMA = 0.2;
+    private static final double MAX_REC_NUM = 3;
     private JSONObject attDiscription;
     private Instances originalData;
     private JSONObject globalGBN;
@@ -163,21 +164,78 @@ public class Bayes {
 
     public String getRecommendation(List<String> attList){
         JSONArray recommendationList = new JSONArray();
-        JSONObject recommendation = new JSONObject();
         JSONArray localGBN = getLocalGBN(attList);
 //        Instant start = Instant.now();
         int index = 0;
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
-            recommendation.put("id", "id"+(index++));
-            recommendation.put("data", group.get("nodes"));
-            recommendation.put("recList", getRec(attList, group));
-        }
+            JSONObject recommendation = new JSONObject();
+            recommendation.put("id", "group_"+(index++));
 
+            JSONObject data = new JSONObject();
+            JSONArray nodes = (JSONArray)group.get("nodes");
+            for(Object _node : nodes){
+                String[] nodeID = ((JSONObject) _node).getString("id").split(": ");
+                data.put(nodeID[0], nodeID[1]);
+            }
+            recommendation.put("data",data);
+
+            JSONArray records = new JSONArray();
+            //Todo:
+            int instanceCounter = 0;
+            for(Instance instance : originalData){
+                instanceCounter++;
+                int nodeCounter = 0;
+                JSONArray recordData = new JSONArray();
+                for(Object _node : nodes){
+                    JSONObject recordDatum  = new JSONObject();
+                    nodeCounter++;
+                    String[] attEvent = ((JSONObject) _node).getString("id").split(": ");
+                    String att = attEvent[0];
+                    String event = attEvent[1];
+                    String type = (String)((JSONObject) this.attDiscription.get(att)).get("type");
+                    if(type.equals("categorical")){
+                        if(instance.stringValue(this.originalData.attribute(att)).equals(event)){
+                            recordDatum.put("attName", att);
+                            recordDatum.put("value", event);
+                            recordDatum.put("utility", 1);// fake, to be calculated
+                            recordData.add(recordDatum);
+                        }else{
+                            break;
+                        }
+                    } else{
+                        double numerivalValue = instance.value(this.originalData.attribute(att));
+                        String[] min_max = event.split("~");
+                        String minString = min_max[0].replaceAll("[\\(\\)\\[\\]]", "");
+                        String maxString = min_max[1].replaceAll("[\\(\\)\\[\\]]", "");
+                        double minValue = minString.equals("-inf")?Double.MIN_VALUE:Double.valueOf(minString);
+                        double maxValue = maxString.equals("inf")?Double.MAX_VALUE:Double.valueOf(maxString);
+                        if(numerivalValue >= minValue && numerivalValue <= maxValue){
+                            recordDatum.put("attName", att);
+                            recordDatum.put("value", numerivalValue);
+                            recordDatum.put("utility", 1);// fake, to be calculated
+                            recordData.add(recordDatum);
+                        }else{
+                            break;
+                        }
+                    }
+                }
+                if(nodeCounter == nodes.size()){
+                    JSONObject record = new JSONObject();
+                    record.put("id", "record_"+instanceCounter);
+                    record.put("data",recordData);
+                    records.add(record);
+                }
+            }
+            recommendation.put("records",records);
+
+            recommendation.put("localGBN", group);
+            recommendation.put("recList", getRec(attList, group));
+            recommendationList.add(recommendation);
+        }
 //        Instant end = Instant.now();
 //        System.out.println("getRecommendation运行时间： " + Duration.between(start, end).toNanos() + "ns");
 
-        recommendationList.add(recommendation);
         return recommendationList.toJSONString();
     }
 
@@ -382,28 +440,45 @@ public class Bayes {
      * @return
      */
     private JSONArray getRec(List<String> attList, JSONObject group) {
-        JSONArray rec = new JSONArray();
-        JSONArray top3rec4group = new JSONArray();
-        int numInstances = this.data.numInstances();
+        JSONArray recList = new JSONArray();
         JSONArray nodes = group.getJSONArray("nodes");
-        List<String> events = new ArrayList<>();
+        List<String> normalEvents = new ArrayList<>();
         List<String> sensitiveEvents = new ArrayList<>();
         for(Object _node : nodes){
             String node = ((JSONObject) _node).getString("id");
             if (this.allAttSensitivity.get(node.split(": ")[0])) { //sensitive atts which needs to be calculated
                 sensitiveEvents.add(node);
             } else{
-                events.add(node);
+                normalEvents.add(node);
             }
         }
-        Boolean[] protects = isProtected(events, sensitiveEvents);
-        for(int i = 0, len_i = protects.length; i < len_i; i++){
-            if(!protects[i]){
-                //Todo
+        Boolean initProtects = isProtected(normalEvents, sensitiveEvents);
+        if(!initProtects) {
+            for (int combinationLen = 1, len = normalEvents.size(); combinationLen < len; combinationLen++) {
+                if (recList.size() >= MAX_REC_NUM) break;
+                for (int i = 0, len_i = normalEvents.size() - combinationLen + 1; i < len_i; i++) {
+                    if (recList.size() < MAX_REC_NUM) {
+                        List<String> deleteEvents = new ArrayList<>();
+                        List<String> subEvents = new ArrayList<>();
+                        subEvents.addAll(normalEvents);
+                        for (int j = i; j < combinationLen; j++) {
+                            deleteEvents.add(normalEvents.get(j));
+                        }
+                        subEvents.removeAll(deleteEvents);
+                        Boolean protects = isProtected(subEvents, sensitiveEvents);
+                        if (protects) {
+                            JSONObject scheme = new JSONObject();
+                            scheme.put("dL", deleteEvents);
+                            scheme.put("uL", 1); //fake, to be calculated
+                            recList.add(scheme);
+                        }
+                    } else {
+                        break;
+                    }
+                }
             }
         }
-
-        return rec;
+        return recList;
     }
 
     /**
@@ -416,15 +491,15 @@ public class Bayes {
         for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
             Instance instance = data.instance(i);
             JSONArray links = new JSONArray();
-            Map<String, Integer> entityEventList = new HashMap();
+            Map<String, Integer> entityEventMap = new HashMap();
             for(String att : attList){
-                entityEventList.put(att, nodesMap.get(att + ": " + numericFilter(instance.stringValue(data.attribute(att)))));
+                entityEventMap.put(att, nodesMap.get(att + ": " + numericFilter(instance.stringValue(data.attribute(att)))));
             }
             for(String att : attList){
-                int eventNo = entityEventList.get(att);
+                int eventNo = entityEventMap.get(att);
                 if(linksMap.containsKey(eventNo)){
                     for(Tuple tuple : linksMap.get(eventNo)){
-                        if(entityEventList.containsValue(tuple.getT0())) {
+                        if(entityEventMap.containsValue(tuple.getT0())) {
                             JSONObject link = new JSONObject();
                             link.put("source", eventNo);
                             link.put("target", tuple.getT0());
@@ -444,7 +519,6 @@ public class Bayes {
 
         List<Map.Entry<JSONArray, Integer>> localGBNList = new ArrayList<>(localGBNMap.entrySet());
         Collections.sort(localGBNList, (o1, o2) -> o2.getValue() - o1.getValue());
-//        localGBNList.sort(Comparator.comparing(Map.Entry<JSONArray, Integer>::getValue).reversed());
 
         for(Map.Entry<JSONArray, Integer> gbn: localGBNList){
             JSONObject group = new JSONObject();
@@ -479,7 +553,7 @@ public class Bayes {
         for(JSONObject att: selectAtt){
             String attName = att.getString("attName");
             JSONObject attObj = new JSONObject();
-            String type = (String)((JSONObject) getAttDiscription().get(attName)).get("type");
+            String type = (String)((JSONObject) this.attDiscription.get(attName)).get("type");
             JSONArray dataList = new JSONArray();
             switch(type){
                 case "numerical": {
@@ -540,28 +614,30 @@ public class Bayes {
      * @param sensitiveEvents: [Es1, Es2, ...]
      * @return isProtected: [protects(Es1), protects(Es2), ...]
      */
-    private Boolean[] isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
-        int numSensitiveEvents = sensitiveEvents.size();
-        Boolean[] protects = new Boolean[numSensitiveEvents];
-        Arrays.fill(protects, true);
-        if (this.data == null) return protects;
+    private Boolean isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
+        if (this.data == null) return true;
 
         int numInstances = data.numInstances();
         int numNormalEvents = normalEvents.size();
+        int numSensitiveEvents = sensitiveEvents.size();
         double pr_real;
+        Boolean isProtected = true;
         double[] numerator = new double[numSensitiveEvents];
         double[] denominator = new double[numSensitiveEvents];
         double[] pr_condition = new double[numSensitiveEvents];
         Arrays.fill(numerator, 0.0);
         Arrays.fill(denominator, 0.0);
 
-        for (Instance record : data) {
+        Boolean[] protects = new Boolean[numSensitiveEvents];
+        Arrays.fill(protects, true);
+
+        for (Instance instance : data) {
             int i = 0;
             for (; i < numNormalEvents; i++) {
                 String[] attEvent = normalEvents.get(i).split(": ");
                 String att = attEvent[0];
                 String event = attEvent[1];
-                if (!numericFilter(record.stringValue(this.data.attribute(att))).equals(event)) {
+                if (!numericFilter(instance.stringValue(this.data.attribute(att))).equals(event)) {
                     break;
                 }
             }
@@ -571,23 +647,28 @@ public class Bayes {
                     String[] attEvent = sensitiveEvents.get(j).split(": ");
                     String att = attEvent[0];
                     String event = attEvent[1];
-                    if(numericFilter(record.stringValue(this.data.attribute(att))).equals(event)){
+                    if(numericFilter(instance.stringValue(this.data.attribute(att))).equals(event)){
                         numerator[j]++;
                     }
                 }
             }
         }
+        //For debug convenience, can be easily accelerated
         try {
             for(int i = 0; i < numSensitiveEvents; i++){
                 pr_condition[i] = numerator[i] / denominator[i];
                 pr_real = (double)this.priorMap.get(sensitiveEvents.get(i)) / numInstances;
-                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(sigma*pr_real, 2);
+                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(SIGMA *pr_real, 2);
             }
         } catch (ArithmeticException e) {
             System.out.println("Can not be divided by zero.");
         }
-        return protects;
+        for(int i = 0; i < numSensitiveEvents; i++){
+            isProtected &= protects[i];
+        }
+        return isProtected;
     }
+
     /**
      * remove the quotation on the start and the end if it has
      * @param value
