@@ -61,7 +61,7 @@ public class UserController {
     }
 
     @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
-    public String get_local_gbn(HttpServletRequest request) {
+    public String get_recommendation(HttpServletRequest request) {
         StringBuilder buffer = new StringBuilder();
         String line;
         try {

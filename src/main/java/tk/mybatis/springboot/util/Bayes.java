@@ -165,7 +165,6 @@ public class Bayes {
     public String getRecommendation(List<String> attList){
         JSONArray recommendationList = new JSONArray();
         JSONArray localGBN = getLocalGBN(attList);
-//        Instant start = Instant.now();
         int index = 0;
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
@@ -181,15 +180,13 @@ public class Bayes {
             recommendation.put("data",data);
 
             JSONArray records = new JSONArray();
-            int instanceCounter = 0;
-            for(Instance instance : originalData){
-                instanceCounter++;
-                int nodeCounter = 0;
+            for(int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++){
+                Instance instance = originalData.instance(i);
                 JSONArray recordData = new JSONArray();
-                for(Object _node : nodes){
+                int j = 0, numNodes = nodes.size();
+                for(; j < numNodes; j++){
                     JSONObject recordDatum  = new JSONObject();
-                    nodeCounter++;
-                    String[] attEvent = ((JSONObject) _node).getString("id").split(": ");
+                    String[] attEvent = ((JSONObject) nodes.get(j)).getString("id").split(": ");
                     String att = attEvent[0];
                     String event = attEvent[1];
                     String type = (String)((JSONObject) this.attDiscription.get(att)).get("type");
@@ -205,8 +202,8 @@ public class Bayes {
                     } else{
                         double numerivalValue = instance.value(this.originalData.attribute(att));
                         String[] min_max = event.split("~");
-                        String minString = min_max[0].replaceAll("[\\(\\)\\[\\]]", "");
-                        String maxString = min_max[1].replaceAll("[\\(\\)\\[\\]]", "");
+                        String minString = min_max[0].replaceAll("[\\(\\[]", "");
+                        String maxString = min_max[1].replaceAll("[\\)\\]]", "");
                         double minValue = minString.equals("-inf")?Double.MIN_VALUE:Double.valueOf(minString);
                         double maxValue = maxString.equals("inf")?Double.MAX_VALUE:Double.valueOf(maxString);
                         if(numerivalValue >= minValue && numerivalValue <= maxValue){
@@ -219,9 +216,9 @@ public class Bayes {
                         }
                     }
                 }
-                if(nodeCounter == nodes.size()){
+                if(j == nodes.size()){
                     JSONObject record = new JSONObject();
-                    record.put("id", instanceCounter);
+                    record.put("id", i);
                     record.put("data",recordData);
                     records.add(record);
                 }
@@ -234,8 +231,6 @@ public class Bayes {
 
             recommendationList.add(recommendation);
         }
-//        Instant end = Instant.now();
-//        System.out.println("getRecommendation运行时间： " + Duration.between(start, end).toNanos() + "ns");
 
         return recommendationList.toJSONString();
     }
@@ -489,12 +484,12 @@ public class Bayes {
     private JSONArray getLocalGBN(List<String> attList){
         Map<JSONArray, Integer> localGBNMap = new HashMap<>();
         JSONArray jsonLocalGBN = new JSONArray();
-        for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
-            Instance instance = data.instance(i);
+        for (int i = 0, numInstances = this.data.numInstances(); i < numInstances; i++) {
+            Instance instance = this.data.instance(i);
             JSONArray links = new JSONArray();
             Map<String, Integer> entityEventMap = new HashMap();
             for(String att : attList){
-                entityEventMap.put(att, nodesMap.get(att + ": " + numericFilter(instance.stringValue(data.attribute(att)))));
+                entityEventMap.put(att, this.nodesMap.get(att + ": " + numericFilter(instance.stringValue(this.data.attribute(att)))));
             }
             for(String att : attList){
                 int eventNo = entityEventMap.get(att);
@@ -534,7 +529,7 @@ public class Bayes {
             for(Integer _node : nodesSet){
                 JSONObject node = new JSONObject();
                 node.put("eventNo",_node);
-                node.put("id", nodesMap.inverse().get(_node));
+                node.put("id", this.nodesMap.inverse().get(_node));
                 node.put("value", 1);
                 nodes.add(node);
             }
