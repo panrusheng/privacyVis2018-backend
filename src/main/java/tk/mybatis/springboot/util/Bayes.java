@@ -91,7 +91,7 @@ class Truple<T0, T1, T2> {
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    private static final double SIGMA = 0.2;
+    private static final double DELTA = 0.15;
     private static final double MAX_REC_NUM = 3;
     private JSONObject attDiscription;
     private Instances originalData;
@@ -181,7 +181,6 @@ public class Bayes {
             recommendation.put("data",data);
 
             JSONArray records = new JSONArray();
-            //Todo:
             int instanceCounter = 0;
             for(Instance instance : originalData){
                 instanceCounter++;
@@ -230,7 +229,9 @@ public class Bayes {
             recommendation.put("records",records);
 
             recommendation.put("localGBN", group);
+
             recommendation.put("recList", getRec(attList, group));
+
             recommendationList.add(recommendation);
         }
 //        Instant end = Instant.now();
@@ -658,7 +659,7 @@ public class Bayes {
             for(int i = 0; i < numSensitiveEvents; i++){
                 pr_condition[i] = numerator[i] / denominator[i];
                 pr_real = (double)this.priorMap.get(sensitiveEvents.get(i)) / numInstances;
-                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(SIGMA *pr_real, 2);
+                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(DELTA *pr_real, 2);
             }
         } catch (ArithmeticException e) {
             System.out.println("Can not be divided by zero.");
