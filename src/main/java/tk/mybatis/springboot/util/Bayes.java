@@ -170,7 +170,7 @@ public class Bayes {
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
             JSONObject recommendation = new JSONObject();
-            recommendation.put("id", "group_"+(index++));
+            recommendation.put("id", index++);
 
             JSONObject data = new JSONObject();
             JSONArray nodes = (JSONArray)group.get("nodes");
@@ -221,7 +221,7 @@ public class Bayes {
                 }
                 if(nodeCounter == nodes.size()){
                     JSONObject record = new JSONObject();
-                    record.put("id", "record_"+instanceCounter);
+                    record.put("id", instanceCounter);
                     record.put("data",recordData);
                     records.add(record);
                 }

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import tk.mybatis.springboot.model.User;
 import tk.mybatis.springboot.service.UserService;
 
+import java.io.BufferedReader;
 import java.util.List;
 
 import tk.mybatis.springboot.util.Bayes;
@@ -61,7 +62,20 @@ public class UserController {
 
     @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
     public String get_local_gbn(HttpServletRequest request) {
-        List<String> selectAtt = JSON.parseArray(request.getParameter("attributes"), String.class);
+        StringBuilder buffer = new StringBuilder();
+        String line;
+        try {
+            BufferedReader reader = request.getReader();
+            while ((line = reader.readLine()) != null) {
+                buffer.append(line);
+            }
+        } catch (Exception e) {
+
+        }
+
+        JSONObject data = JSON.parseObject(buffer.toString());
+
+        List<String> selectAtt = data.getJSONArray("attributes").toJavaList(String.class);
         return this.bn.getRecommendation(selectAtt);
     }
 
