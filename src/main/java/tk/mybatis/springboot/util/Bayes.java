@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 enum LocalSearchAlgorithm {
@@ -53,6 +52,12 @@ class Tuple<T0, T1> {
     public boolean equals(Object obj) {
         return ((Tuple)obj).getT0() == this.t0;
     }
+
+    @Override
+    public int hashCode() {
+        return this.t0.hashCode();
+    }
+
 }
 
 class Truple<T0, T1, T2> {
@@ -88,6 +93,11 @@ class Truple<T0, T1, T2> {
     public boolean equals(Object obj) {
         return ((Truple)obj).getT0() == this.t0;
     }
+
+    @Override
+    public int hashCode() {
+        return this.t0.hashCode();
+    }
 }
 
 public class Bayes {
@@ -102,7 +112,7 @@ public class Bayes {
     private List<String> allAttName;
     private Map<String, Boolean> allAttSensitivity;
     private HashMap<String, Integer> priorMap;
-    private Map<Integer, Set<Tuple<Integer, Double>>> linksMap;
+    private Map<Integer, Set<Tuple<Integer, Double>>> linksMap; // source -> targetSet
     private BiMap<String, Integer> nodesMap;
 
     private void initOriginalData(){
@@ -171,6 +181,7 @@ public class Bayes {
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
             JSONObject recommendation = new JSONObject();
+
             recommendation.put("localGBN", group);
             recommendation.put("id", index++);
 
@@ -226,7 +237,7 @@ public class Bayes {
                     records.add(record);
                 }
             }
-            recommendation.put("records",records);
+//            recommendation.put("records",records);
 
             Tuple<JSONArray, JSONObject> recResult = getRec(group);
             JSONArray recList = recResult.getT0();
@@ -425,10 +436,10 @@ public class Bayes {
             Integer target = (Integer)link.get("target");
             Double value = (Double)link.get("value");
             if(this.linksMap.containsKey(source)){
-                this.linksMap.get(source).add(new Tuple(target, value));
+                this.linksMap.get(source).add(new Tuple<>(target, value));
             }else {
-                Set<Tuple<Integer, Double>> tupleSet = new HashSet();
-                tupleSet.add(new Tuple(target, value));
+                Set<Tuple<Integer, Double>> tupleSet = new HashSet<>();
+                tupleSet.add(new Tuple<>(target, value));
                 this.linksMap.put(source, tupleSet);
             }
         }
@@ -484,7 +495,7 @@ public class Bayes {
                 }
             }
         }
-        return new Tuple(recList, riskList);
+        return new Tuple<>(recList, riskList);
     }
 
     /**
@@ -494,8 +505,7 @@ public class Bayes {
     private JSONArray getLocalGBN(List<String> attList) {
         Map<JSONArray, Integer> localGBNMap = new HashMap<>();
         JSONArray jsonLocalGBN = new JSONArray();
-        for (int i = 0, numInstances = this.data.numInstances(); i < numInstances; i++) {
-            Instance instance = this.data.instance(i);
+        for(Instance instance : this.data){
             JSONArray links = new JSONArray();
             Map<String, Integer> entityEventMap = new HashMap();
             for(String att : attList){
@@ -503,8 +513,8 @@ public class Bayes {
             }
             for(String att : attList){
                 int eventNo = entityEventMap.get(att);
-                if(linksMap.containsKey(eventNo)){
-                    for(Tuple tuple : linksMap.get(eventNo)){
+                if(this.linksMap.containsKey(eventNo)){
+                    for(Tuple tuple : this.linksMap.get(eventNo)){
                         if(entityEventMap.containsValue(tuple.getT0())) {
                             JSONObject link = new JSONObject();
                             link.put("source", eventNo);
@@ -635,28 +645,38 @@ public class Bayes {
         Arrays.fill(risk, 0.0);
 
         for (Instance instance : data) {
-            int i = 0;
-            for (; i < numNormalEvents; i++) {
-                String[] attEvent = normalEvents.get(i).split(": ");
-                String att = attEvent[0];
-                String event = attEvent[1];
-                if (!numericFilter(instance.stringValue(this.data.attribute(att))).equals(event)) {
-                    break;
+            for(int i = 0; i < numSensitiveEvents; i++){
+                String sensitiveEvent = sensitiveEvents.get(i);
+                Integer sensitiveEventNo = this.nodesMap.get(sensitiveEvent);
+                int j = 0;
+                for (; j < numNormalEvents; j++) {
+                    String normalEvent = normalEvents.get(j);
+                    Integer normalEventNo = this.nodesMap.get(normalEvent);
+                    if((this.linksMap.containsKey(normalEventNo)
+                            && this.linksMap.get(normalEventNo).contains(new Tuple<>(sensitiveEventNo,0.0))
+                            )||
+                            (this.linksMap.containsKey(sensitiveEventNo)
+                            && this.linksMap.get(sensitiveEventNo).contains(new Tuple<>(normalEventNo,0.0))
+                            )) {
+                        String[] attEvent = normalEvent.split(": ");
+                        String att = attEvent[0];
+                        String event = attEvent[1];
+                        if (!numericFilter(instance.stringValue(this.data.attribute(att))).equals(event)) {
+                            break;
+                        }
+                    }
                 }
-            }
-            if(i == numNormalEvents){
-                for(int j = 0; j < numSensitiveEvents; j++){
-                    denominator[j]++;
-                    String[] attEvent = sensitiveEvents.get(j).split(": ");
+                if(j == numNormalEvents){
+                    denominator[i]++;
+                    String[] attEvent = sensitiveEvent.split(": ");
                     String att = attEvent[0];
                     String event = attEvent[1];
                     if(numericFilter(instance.stringValue(this.data.attribute(att))).equals(event)){
-                        numerator[j]++;
+                        numerator[i]++;
                     }
                 }
             }
         }
-        //For debug convenience, can be easily accelerated
         try {
             for(int i = 0; i < numSensitiveEvents; i++){
                 pr_condition[i] = numerator[i] / denominator[i];
@@ -676,6 +696,7 @@ public class Bayes {
         }
         return isProtected;
     }
+
     private Boolean isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
         double[] risk = getRisk(normalEvents, sensitiveEvents);
         return isProtected(risk);
