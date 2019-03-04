@@ -20,6 +20,8 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
@@ -91,7 +93,7 @@ class Truple<T0, T1, T2> {
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    private static final double DELTA = 0.15;
+    private static final double DELTA = 0.1;
     private static final double MAX_REC_NUM = 3;
     private JSONObject attDiscription;
     private Instances originalData;
@@ -169,6 +171,7 @@ public class Bayes {
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
             JSONObject recommendation = new JSONObject();
+            recommendation.put("localGBN", group);
             recommendation.put("id", index++);
 
             JSONObject data = new JSONObject();
@@ -223,11 +226,14 @@ public class Bayes {
                     records.add(record);
                 }
             }
-//            recommendation.put("records",records);
+            recommendation.put("records",records);
 
-            recommendation.put("localGBN", group);
+            Tuple<JSONArray, JSONObject> recResult = getRec(group);
+            JSONArray recList = recResult.getT0();
+            recommendation.put("recList", recList);
 
-            recommendation.put("recList", getRec(attList, group));
+            JSONObject riskList = recResult.getT1();
+            recommendation.put("risk", riskList);
 
             recommendationList.add(recommendation);
         }
@@ -431,11 +437,10 @@ public class Bayes {
 
     /**
      *
-     * @param attList
      * @param group
      * @return
      */
-    private JSONArray getRec(List<String> attList, JSONObject group) {
+    private Tuple<JSONArray, JSONObject> getRec(JSONObject group) {
         JSONArray recList = new JSONArray();
         JSONArray nodes = group.getJSONArray("nodes");
         List<String> normalEvents = new ArrayList<>();
@@ -448,23 +453,28 @@ public class Bayes {
                 normalEvents.add(node);
             }
         }
-        Boolean initProtects = isProtected(normalEvents, sensitiveEvents);
+        double[] risk = getRisk(normalEvents, sensitiveEvents);
+        JSONObject riskList = new JSONObject();
+        for(int i = 0, n = risk.length; i < n; i++){
+            riskList.put(sensitiveEvents.get(i), risk[i]);
+        }
+        Boolean initProtects = isProtected(risk);
         if(!initProtects) {
             for (int combinationLen = 1, len = normalEvents.size(); combinationLen < len; combinationLen++) {
                 if (recList.size() >= MAX_REC_NUM) break;
                 for (int i = 0, len_i = normalEvents.size() - combinationLen + 1; i < len_i; i++) {
                     if (recList.size() < MAX_REC_NUM) {
-                        List<Integer> deleteEvents = new ArrayList<>();
+                        List<String> deleteEvents = new ArrayList<>();
                         List<String> subEvents = new ArrayList<>();
                         subEvents.addAll(normalEvents);
                         for (int j = i; j < combinationLen; j++) {
-                            deleteEvents.add(this.nodesMap.get(normalEvents.get(j)));
+                            deleteEvents.add(normalEvents.get(j));
                         }
                         subEvents.removeAll(deleteEvents);
                         Boolean protects = isProtected(subEvents, sensitiveEvents);
                         if (protects) {
                             JSONObject scheme = new JSONObject();
-                            scheme.put("dL", deleteEvents);
+                            scheme.put("dL", deleteEvents.stream().map(this.nodesMap::get).collect(Collectors.toList()));
                             scheme.put("uL", 1); //fake, to be calculated
                             recList.add(scheme);
                         }
@@ -474,14 +484,14 @@ public class Bayes {
                 }
             }
         }
-        return recList;
+        return new Tuple(recList, riskList);
     }
 
     /**
      * get local GBN of bayes net
      * @return
      */
-    private JSONArray getLocalGBN(List<String> attList){
+    private JSONArray getLocalGBN(List<String> attList) {
         Map<JSONArray, Integer> localGBNMap = new HashMap<>();
         JSONArray jsonLocalGBN = new JSONArray();
         for (int i = 0, numInstances = this.data.numInstances(); i < numInstances; i++) {
@@ -610,22 +620,19 @@ public class Bayes {
      * @param sensitiveEvents: [Es1, Es2, ...]
      * @return isProtected: [protects(Es1), protects(Es2), ...]
      */
-    private Boolean isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
-        if (this.data == null) return true;
-
+    private double[] getRisk(List<String> normalEvents, List<String> sensitiveEvents) {
         int numInstances = data.numInstances();
         int numNormalEvents = normalEvents.size();
         int numSensitiveEvents = sensitiveEvents.size();
         double pr_real;
-        Boolean isProtected = true;
         double[] numerator = new double[numSensitiveEvents];
         double[] denominator = new double[numSensitiveEvents];
         double[] pr_condition = new double[numSensitiveEvents];
+        double[] risk = new double[numSensitiveEvents];
+
         Arrays.fill(numerator, 0.0);
         Arrays.fill(denominator, 0.0);
-
-        Boolean[] protects = new Boolean[numSensitiveEvents];
-        Arrays.fill(protects, true);
+        Arrays.fill(risk, 0.0);
 
         for (Instance instance : data) {
             int i = 0;
@@ -654,15 +661,24 @@ public class Bayes {
             for(int i = 0; i < numSensitiveEvents; i++){
                 pr_condition[i] = numerator[i] / denominator[i];
                 pr_real = (double)this.priorMap.get(sensitiveEvents.get(i)) / numInstances;
-                protects[i] = Math.pow((pr_condition[i] - pr_real), 2) <= Math.pow(DELTA *pr_real, 2);
+                risk[i] = Math.abs(pr_condition[i] - pr_real);
             }
         } catch (ArithmeticException e) {
             System.out.println("Can not be divided by zero.");
         }
-        for(int i = 0; i < numSensitiveEvents; i++){
-            isProtected &= protects[i];
+        return risk;
+    }
+
+    private Boolean isProtected(double[] risk){
+        boolean isProtected = true;
+        for (int i = 0, numSensitiveEvents = risk.length; i < numSensitiveEvents; i++) {
+            isProtected &= (risk[i] <= DELTA);
         }
         return isProtected;
+    }
+    private Boolean isProtected(List<String> normalEvents, List<String> sensitiveEvents) {
+        double[] risk = getRisk(normalEvents, sensitiveEvents);
+        return isProtected(risk);
     }
 
     /**
@@ -670,7 +686,7 @@ public class Bayes {
      * @param value
      * @return
      */
-    private String numericFilter(String value){
+    private String numericFilter(String value) {
         if(value.startsWith("\'")){
             value = value.substring(1, value.length()-1);
             if(value.endsWith(")")){
