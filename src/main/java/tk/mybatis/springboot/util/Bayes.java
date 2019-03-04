@@ -223,7 +223,7 @@ public class Bayes {
                     records.add(record);
                 }
             }
-            recommendation.put("records",records);
+//            recommendation.put("records",records);
 
             recommendation.put("localGBN", group);
 
@@ -454,11 +454,11 @@ public class Bayes {
                 if (recList.size() >= MAX_REC_NUM) break;
                 for (int i = 0, len_i = normalEvents.size() - combinationLen + 1; i < len_i; i++) {
                     if (recList.size() < MAX_REC_NUM) {
-                        List<String> deleteEvents = new ArrayList<>();
+                        List<Integer> deleteEvents = new ArrayList<>();
                         List<String> subEvents = new ArrayList<>();
                         subEvents.addAll(normalEvents);
                         for (int j = i; j < combinationLen; j++) {
-                            deleteEvents.add(normalEvents.get(j));
+                            deleteEvents.add(this.nodesMap.get(normalEvents.get(j)));
                         }
                         subEvents.removeAll(deleteEvents);
                         Boolean protects = isProtected(subEvents, sensitiveEvents);
