@@ -237,7 +237,7 @@ public class Bayes {
                     records.add(record);
                 }
             }
-//            recommendation.put("records",records);
+            recommendation.put("records",records);
 
             Tuple<JSONArray, JSONObject> recResult = getRec(group);
             JSONArray recList = recResult.getT0();
