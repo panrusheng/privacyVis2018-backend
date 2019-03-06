@@ -260,7 +260,7 @@ public class Bayes {
                     records.add(record);
                 }
             }
-//            recommendation.put("records",records);
+            recommendation.put("records",records);
 
             Tuple<JSONArray, JSONObject> recResult = getRec(group);
             JSONArray recList = recResult.getT0();
@@ -499,13 +499,13 @@ public class Bayes {
                 if (recList.size() >= MAX_REC_NUM) break;
                 for (int i = 0, len_i = normalEvents.size() - combinationLen; i <= len_i; i++) {
                     if (recList.size() < MAX_REC_NUM) {
-                        if(deletedEventsSegment.contains(new DataSegment(i, i+combinationLen-1))) break;
+                        DataSegment toDeleteDataSegment = new DataSegment(i, i+combinationLen-1);
+                        if(deletedEventsSegment.contains(toDeleteDataSegment)) break;
                         List<String> deleteEvents = new ArrayList<>();
                         List<String> subEvents = new ArrayList<>();
                         subEvents.addAll(normalEvents);
-                        //Todo: 1.确保遍历， 2. 不要重复
-                        for (int j = i; j < i + combinationLen; j++) {
-                            deleteEvents.add(normalEvents.get(j));
+                        for (int j = 0; j < combinationLen; j++) {
+                            deleteEvents.add(normalEvents.get(i+j));
                         }
                         subEvents.removeAll(deleteEvents);
                         Boolean protects = isProtected(subEvents, sensitiveEvents);
@@ -514,7 +514,7 @@ public class Bayes {
                             scheme.put("dL", deleteEvents.stream().map(this.nodesMap::get).collect(Collectors.toList()));
                             scheme.put("uL", 1); //fake, to be calculated
                             recList.add(scheme);
-                            deletedEventsSegment.add(new DataSegment(i, i+combinationLen-1));
+                            deletedEventsSegment.add(toDeleteDataSegment);
                         }
                     } else {
                         break;
