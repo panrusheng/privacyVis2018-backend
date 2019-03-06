@@ -1,7 +1,6 @@
 package tk.mybatis.springboot.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -37,27 +36,23 @@ public class UserController {
     @RequestMapping(value = "load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
         JSONObject response = new JSONObject();
-        response.put("attList",bn.getAttDiscription());
+        response.put("attList",bn.getAttDescription());
         return response.toJSONString();
     }
 
     @RequestMapping(value = "get_gbn", method = RequestMethod.POST)
     public String get_gbn(HttpServletRequest request){
         List<JSONObject> selectAtt = JSON.parseArray(request.getParameter("attributes"), JSONObject.class);
+        String riskLimit = request.getParameter("riskLimit");
         String method = request.getParameter("method");
+
+        this.bn.setRiskLimit(Double.valueOf(riskLimit));
         if(method == null) {
             return this.bn.getGBN(selectAtt);
         }
         else{
             return this.bn.getGBN(method, selectAtt);
         }
-    }
-
-    @RequestMapping(value = "edit_gbn", method = RequestMethod.POST)
-    public String edit_gbn(HttpServletRequest request) {
-        List<JSONObject> events = JSON.parseArray(request.getParameter("events"), JSONObject.class);
-        //Todo
-        return "";
     }
 
     @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
@@ -73,10 +68,10 @@ public class UserController {
 
         }
 
-        JSONObject data = JSON.parseObject(buffer.toString());
-
-        List<String> selectAtt = data.getJSONArray("attributes").toJavaList(String.class);
-        return this.bn.getRecommendation(selectAtt);
+        JSONObject parameters = JSON.parseObject(buffer.toString());
+        List<JSONObject> links = JSON.parseArray(parameters.getString("links"), JSONObject.class);
+        List<JSONObject> utilityList = JSON.parseArray(parameters.getString("utilityList"), JSONObject.class);
+        return this.bn.getRecommendation(links, utilityList);
     }
 
     @RequestMapping(value = "get_result", method = RequestMethod.POST)

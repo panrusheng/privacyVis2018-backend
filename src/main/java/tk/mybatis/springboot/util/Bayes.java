@@ -126,54 +126,28 @@ class DataSegment {
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
-    private static final double DELTA = 0.1;
     private static final double MAX_REC_NUM = 3;
-    private JSONObject attDiscription;
+    private double riskLimit;
+    private JSONObject attDescription;
     private Instances originalData;
-    private JSONObject globalGBN;
     private Instances data;
     private List<String> allAttName;
     private Map<String, Boolean> allAttSensitivity;
     private HashMap<String, Integer> priorMap;
-    private Map<Integer, Set<Tuple<Integer, java.lang.Double>>> linksMap; // source -> targetSet
+    private Map<Integer, Set<Tuple<Integer, java.lang.Double>>> linksMap; // source -> Set<target>
     private BiMap<String, Integer> nodesMap;
 
-    private void initOriginalData(){
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
-            this.originalData = new Instances(reader);
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void initAttDiscription(){
-        this.attDiscription = new JSONObject();
-        this.attDiscription.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
-        this.attDiscription.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
-        this.attDiscription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+    public void setRiskLimit(double riskLimit){
+        this.riskLimit = riskLimit;
     }
 
     public Bayes(){
         initOriginalData();
-        initAttDiscription();
-        this.globalGBN = null;
+        initAttDescription();
     }
 
-    public JSONObject getAttDiscription(){
-        return this.attDiscription;
+    public JSONObject getAttDescription(){
+        return this.attDescription;
     }
 
     /**
@@ -197,9 +171,12 @@ public class Bayes {
         return gbn.toJSONString();
     }
 
-    public String getRecommendation(List<String> attList){
+    public String getRecommendation(List<JSONObject> links, List<JSONObject> utilityList){
+        for(JSONObject link : links){
+            //Todo
+        }
         JSONArray recommendationList = new JSONArray();
-        JSONArray localGBN = getLocalGBN(attList);
+        JSONArray localGBN = getLocalGBN();
         int index = 0;
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
@@ -212,7 +189,9 @@ public class Bayes {
             JSONArray nodes = (JSONArray)group.get("nodes");
             for(Object _node : nodes){
                 String[] nodeID = ((JSONObject) _node).getString("id").split(": ");
-                data.put(nodeID[0], nodeID[1]);
+                if(!this.allAttSensitivity.get(nodeID[0])){
+                    data.put(nodeID[0], nodeID[1]);
+                }
             }
             recommendation.put("data",data);
 
@@ -225,8 +204,9 @@ public class Bayes {
                     JSONObject recordDatum  = new JSONObject();
                     String[] attEvent = ((JSONObject) nodes.get(j)).getString("id").split(": ");
                     String att = attEvent[0];
+                    if(this.allAttSensitivity.get(att)) continue;
                     String event = attEvent[1];
-                    String type = (String)((JSONObject) this.attDiscription.get(att)).get("type");
+                    String type = (String)((JSONObject) this.attDescription.get(att)).get("type");
                     if(type.equals("categorical")){
                         if(instance.stringValue(this.originalData.attribute(att)).equals(event)){
                             recordDatum.put("attName", att);
@@ -241,9 +221,9 @@ public class Bayes {
                         String[] min_max = event.split("~");
                         String minString = min_max[0].replaceAll("[\\(\\[]", "");
                         String maxString = min_max[1].replaceAll("[\\)\\]]", "");
-                        double minValue = minString.equals("-inf")? java.lang.Double.MIN_VALUE: java.lang.Double.valueOf(minString);
-                        double maxValue = maxString.equals("inf")? java.lang.Double.MAX_VALUE: java.lang.Double.valueOf(maxString);
-                        if(numerivalValue >= minValue && numerivalValue <= maxValue){
+                        double minValue = minString.equals("-inf")? Double.NEGATIVE_INFINITY: java.lang.Double.valueOf(minString);
+                        double maxValue = maxString.equals("inf")? Double.POSITIVE_INFINITY: java.lang.Double.valueOf(maxString);
+                        if(numerivalValue > minValue && numerivalValue <= maxValue){
                             recordDatum.put("attName", att);
                             recordDatum.put("value", numerivalValue);
                             recordDatum.put("utility", 1);// fake, to be calculated
@@ -275,16 +255,45 @@ public class Bayes {
         return recommendationList.toJSONString();
     }
 
+    private void initOriginalData(){
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
+            this.originalData = new Instances(reader);
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void initAttDescription(){
+        this.attDescription = new JSONObject();
+        this.attDescription.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
+        this.attDescription.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
+        this.attDescription.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
+        this.attDescription.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
+        this.attDescription.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
+        this.attDescription.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
+        this.attDescription.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
+        this.attDescription.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
+        this.attDescription.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
+        this.attDescription.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
+        this.attDescription.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
+        this.attDescription.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
+        this.attDescription.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
+        this.attDescription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
+        this.attDescription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+    }
+
     /**
      * get attDistributions & GBN of bayes net with given localSearchAlgorithm & given attributes
      * @return bundle
      */
     private JSONObject getGlobalGBN(String localSearchAlgorithm, List<JSONObject> attList) {
-        this.allAttName = new ArrayList();
-        this.allAttSensitivity = new HashMap();
+        this.allAttName = new ArrayList<>();
+        this.allAttSensitivity = new HashMap<>();
         for(JSONObject att : attList){
-            this.allAttSensitivity.put((String)att.get("attName"), (Boolean)att.get("sensitive"));
-            this.allAttName.add((String)att.get("attName"));
+            String attName = (String)att.get("attName");
+            this.allAttName.add(attName);
+            this.allAttSensitivity.put(attName, (Boolean)att.get("sensitive"));
         }
         try{
             Discretize discretize = new Discretize();
@@ -443,7 +452,6 @@ public class Bayes {
 
             gbn.put("nodes",nodeList);
             gbn.put("links",linkList);
-            this.globalGBN = gbn;
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -529,16 +537,16 @@ public class Bayes {
      * get local GBN of bayes net
      * @return
      */
-    private JSONArray getLocalGBN(List<String> attList) {
+    private JSONArray getLocalGBN() {
         Map<JSONArray, Integer> localGBNMap = new HashMap<>();
         JSONArray jsonLocalGBN = new JSONArray();
         for(Instance instance : this.data){
             JSONArray links = new JSONArray();
             Map<String, Integer> entityEventMap = new HashMap();
-            for(String att : attList){
+            for(String att : this.allAttName){
                 entityEventMap.put(att, this.nodesMap.get(att + ": " + numericFilter(instance.stringValue(this.data.attribute(att)))));
             }
-            for(String att : attList){
+            for(String att : this.allAttName){
                 int eventNo = entityEventMap.get(att);
                 if(this.linksMap.containsKey(eventNo)){
                     for(Tuple tuple : this.linksMap.get(eventNo)){
@@ -596,7 +604,7 @@ public class Bayes {
         for(JSONObject att: selectAtt){
             String attName = att.getString("attName");
             JSONObject attObj = new JSONObject();
-            String type = (String)((JSONObject) this.attDiscription.get(attName)).get("type");
+            String type = (String)((JSONObject) this.attDescription.get(attName)).get("type");
             JSONArray dataList = new JSONArray();
             switch(type){
                 case "numerical": {
@@ -722,7 +730,7 @@ public class Bayes {
     private Boolean isProtected(double[] risk){
         boolean isProtected = true;
         for (int i = 0, numSensitiveEvents = risk.length; i < numSensitiveEvents; i++) {
-            isProtected &= (risk[i] <= DELTA);
+            isProtected &= (risk[i] <= this.riskLimit);
         }
         return isProtected;
     }
