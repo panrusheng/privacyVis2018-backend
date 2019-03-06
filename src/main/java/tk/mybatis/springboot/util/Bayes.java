@@ -100,6 +100,29 @@ class Truple<T0, T1, T2> {
     }
 }
 
+class DataSegment {
+    private int start;
+    private int end;
+    DataSegment(int start, int end){
+        this.start = start;
+        this.end = end;
+    }
+
+    public int getEnd() {
+        return end;
+    }
+
+    public int getStart() {
+        return start;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        DataSegment that = (DataSegment)obj;
+        return (that.getStart() >= this.start && that.getEnd() <= this.end);
+    }
+}
+
 public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
@@ -112,7 +135,7 @@ public class Bayes {
     private List<String> allAttName;
     private Map<String, Boolean> allAttSensitivity;
     private HashMap<String, Integer> priorMap;
-    private Map<Integer, Set<Tuple<Integer, Double>>> linksMap; // source -> targetSet
+    private Map<Integer, Set<Tuple<Integer, java.lang.Double>>> linksMap; // source -> targetSet
     private BiMap<String, Integer> nodesMap;
 
     private void initOriginalData(){
@@ -218,8 +241,8 @@ public class Bayes {
                         String[] min_max = event.split("~");
                         String minString = min_max[0].replaceAll("[\\(\\[]", "");
                         String maxString = min_max[1].replaceAll("[\\)\\]]", "");
-                        double minValue = minString.equals("-inf")?Double.MIN_VALUE:Double.valueOf(minString);
-                        double maxValue = maxString.equals("inf")?Double.MAX_VALUE:Double.valueOf(maxString);
+                        double minValue = minString.equals("-inf")? java.lang.Double.MIN_VALUE: java.lang.Double.valueOf(minString);
+                        double maxValue = maxString.equals("inf")? java.lang.Double.MAX_VALUE: java.lang.Double.valueOf(maxString);
                         if(numerivalValue >= minValue && numerivalValue <= maxValue){
                             recordDatum.put("attName", att);
                             recordDatum.put("value", numerivalValue);
@@ -237,7 +260,7 @@ public class Bayes {
                     records.add(record);
                 }
             }
-            recommendation.put("records",records);
+//            recommendation.put("records",records);
 
             Tuple<JSONArray, JSONObject> recResult = getRec(group);
             JSONArray recList = recResult.getT0();
@@ -434,11 +457,11 @@ public class Bayes {
             JSONObject link = (JSONObject) _link;
             Integer source = (Integer)link.get("source");
             Integer target = (Integer)link.get("target");
-            Double value = (Double)link.get("value");
+            java.lang.Double value = (java.lang.Double)link.get("value");
             if(this.linksMap.containsKey(source)){
                 this.linksMap.get(source).add(new Tuple<>(target, value));
             }else {
-                Set<Tuple<Integer, Double>> tupleSet = new HashSet<>();
+                Set<Tuple<Integer, java.lang.Double>> tupleSet = new HashSet<>();
                 tupleSet.add(new Tuple<>(target, value));
                 this.linksMap.put(source, tupleSet);
             }
@@ -469,16 +492,19 @@ public class Bayes {
         for(int i = 0, n = risk.length; i < n; i++){
             riskList.put(sensitiveEvents.get(i), risk[i]);
         }
+        List<DataSegment> deletedEventsSegment = new ArrayList<>();
         Boolean initProtects = isProtected(risk);
         if(!initProtects) {
-            for (int combinationLen = 1, len = normalEvents.size(); combinationLen < len; combinationLen++) {
+            for (int combinationLen = 1, len = normalEvents.size(); combinationLen <= len; combinationLen++) {
                 if (recList.size() >= MAX_REC_NUM) break;
-                for (int i = 0, len_i = normalEvents.size() - combinationLen + 1; i < len_i; i++) {
+                for (int i = 0, len_i = normalEvents.size() - combinationLen; i <= len_i; i++) {
                     if (recList.size() < MAX_REC_NUM) {
+                        if(deletedEventsSegment.contains(new DataSegment(i, i+combinationLen-1))) break;
                         List<String> deleteEvents = new ArrayList<>();
                         List<String> subEvents = new ArrayList<>();
                         subEvents.addAll(normalEvents);
-                        for (int j = i; j < combinationLen; j++) {
+                        //Todo: 1.确保遍历， 2. 不要重复
+                        for (int j = i; j < i + combinationLen; j++) {
                             deleteEvents.add(normalEvents.get(j));
                         }
                         subEvents.removeAll(deleteEvents);
@@ -488,6 +514,7 @@ public class Bayes {
                             scheme.put("dL", deleteEvents.stream().map(this.nodesMap::get).collect(Collectors.toList()));
                             scheme.put("uL", 1); //fake, to be calculated
                             recList.add(scheme);
+                            deletedEventsSegment.add(new DataSegment(i, i+combinationLen-1));
                         }
                     } else {
                         break;
@@ -575,7 +602,7 @@ public class Bayes {
                 case "numerical": {
                     try{
                         Attribute attribute = originalData.attribute(attName);
-                        Map<Double, Integer> eventCount = new TreeMap<>();
+                        Map<java.lang.Double, Integer> eventCount = new TreeMap<>();
                         for(int i = 0, numInstances = originalData.numInstances(); i < numInstances; i++){
                             Instance instance = originalData.instance(i);
                             double attKey = instance.value(attribute);
@@ -585,7 +612,7 @@ public class Bayes {
                                 eventCount.put(attKey, 1);
                             }
                         }
-                        for(Double key : eventCount.keySet()){
+                        for(java.lang.Double key : eventCount.keySet()){
                             JSONObject dataItem = new JSONObject();
                             dataItem.put("label", key);
                             dataItem.put("value", eventCount.get(key));
@@ -634,15 +661,18 @@ public class Bayes {
         int numInstances = data.numInstances();
         int numNormalEvents = normalEvents.size();
         int numSensitiveEvents = sensitiveEvents.size();
+        double[] risk = new double[numSensitiveEvents];
+        Arrays.fill(risk, 0.0);
+        if(numNormalEvents == 0){
+            return risk;
+        }
+
         double pr_real;
         double[] numerator = new double[numSensitiveEvents];
         double[] denominator = new double[numSensitiveEvents];
         double[] pr_condition = new double[numSensitiveEvents];
-        double[] risk = new double[numSensitiveEvents];
-
         Arrays.fill(numerator, 0.0);
         Arrays.fill(denominator, 0.0);
-        Arrays.fill(risk, 0.0);
 
         for (Instance instance : data) {
             for(int i = 0; i < numSensitiveEvents; i++){
@@ -727,8 +757,11 @@ public class Bayes {
      */
     public static void main(String[] args) {
         Bayes bn = new Bayes();
-//        System.out.println(bn.getAttDistribution("wei", "numerical"));
-//        System.out.println(bn.getAttDistribution("cat", "categorical"));
+        List<DataSegment> test= new ArrayList<>();
+        test.add(new DataSegment(4, 5));
+        test.add(new DataSegment(2, 3));
+        test.contains(new DataSegment(2,4));
+        test.contains(new DataSegment(3,5));
     }
 }
 
