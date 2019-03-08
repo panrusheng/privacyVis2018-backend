@@ -127,6 +127,9 @@ public class Bayes {
     private static String root_path = new File(".").getAbsoluteFile().getParent()
             + File.separator + "src"+ File.separator + "main"+ File.separator + "java"+ File.separator;
     private static final int MAX_REC_NUM = 3;
+    private static final int GROUP_NUM = 50;
+    private static final double LIMIT_RATE = 0.2;
+    private DecimalFormat df = new DecimalFormat("#0.00"); // To use: (String) df.format(Number);
     private double riskLimit;
     private JSONObject attDescription;
     private Instances originalData;
@@ -166,7 +169,6 @@ public class Bayes {
      * @return
      */
     public String getGBN(String localSearchAlgorithm, List<JSONObject> attList){
-
         JSONObject gbn = new JSONObject();
         gbn.put("GBN", getGlobalGBN(localSearchAlgorithm, attList));
         gbn.put("attributes", getAttDistribution(attList));
@@ -322,28 +324,11 @@ public class Bayes {
             this.allAttSensitivity.put(attName, (Boolean)att.get("sensitive"));
         }
         initUtilityMap();
-        try{
-            Discretize discretize = new Discretize();
-            discretize.setBins(2);
-            discretize.setInputFormat(originalData);
-            this.data = Filter.useFilter(originalData, discretize);
-            this.data.setClassIndex(this.data.numAttributes() - 1);
+        dataAggregate("p-v");
 
-            for(int i = 0, len_i = this.data.numAttributes(); i < len_i; i++){
-                if(!this.allAttName.contains(this.data.attribute(i).name())){
-                    this.data.deleteAttributeAt(i);
-                    i--; len_i--;
-                }else{
-                    this.data.setClassIndex(i);
-                }
-            }
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
-        DecimalFormat df = new DecimalFormat("#0.00"); // To use: (String) df.format(Number);
         try {
             BayesNet bn = new BayesNet();
             switch (LocalSearchAlgorithm.valueOf(localSearchAlgorithm)){
@@ -652,17 +637,8 @@ public class Bayes {
             switch(type){
                 case "numerical": {
                     try{
-                        Attribute attribute = originalData.attribute(attName);
-                        Map<Double, Integer> eventCount = new TreeMap<>();
-                        for(int i = 0, numInstances = originalData.numInstances(); i < numInstances; i++){
-                            Instance instance = originalData.instance(i);
-                            double attKey = instance.value(attribute);
-                            if(eventCount.containsKey(attKey)){
-                                eventCount.put(attKey, eventCount.get(attKey)+1);
-                            } else {
-                                eventCount.put(attKey, 1);
-                            }
-                        }
+                        Attribute attribute = this.originalData.attribute(attName);
+                        Map<Double, Integer> eventCount = getNumericEventCount(attribute);
                         for(Double key : eventCount.keySet()){
                             JSONObject dataItem = new JSONObject();
                             dataItem.put("label", key);
@@ -674,10 +650,10 @@ public class Bayes {
                     }
                 } break;
                 case "categorical": {
-                    Attribute attribute = data.attribute(attName);
+                    Attribute attribute = this.data.attribute(attName);
                     Map<String, Integer> eventCount = new HashMap<>();
-                    for (int i = 0, numInstances = data.numInstances(); i < numInstances; i++) {
-                        Instance instance = data.instance(i);
+                    for (int i = 0, numInstances = this.data.numInstances(); i < numInstances; i++) {
+                        Instance instance = this.data.instance(i);
                         String attKey = instance.stringValue(attribute);
                         if(eventCount.containsKey(attKey)){
                             eventCount.put(attKey, eventCount.get(attKey)+1);
@@ -783,7 +759,6 @@ public class Bayes {
         return isProtected;
     }
 
-
     /**
      * remove the quotation on the start and the end if it has
      * @param value
@@ -808,6 +783,199 @@ public class Bayes {
         for(String attName : this.allAttName){
             this.utilityMap.put(attName, -1.0);
         }
+    }
+
+    private void dataAggregate(String mode){
+        switch (mode){
+            case "expired":{
+                try{
+                    Discretize discretize = new Discretize();
+                    discretize.setBins(2);
+                    discretize.setInputFormat(originalData);
+                    this.data = Filter.useFilter(originalData, discretize);
+
+                }catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } break;
+            case "default":{
+
+            } break;
+            case "p-v":{
+                Map<String, double[]> attMinMax = new HashMap<>();
+                Map<String, int[]> attGroupList = new HashMap<>();
+                Map<String, List<Double>> attSplitPoint = new HashMap<>();
+
+                for(String attName : this.allAttName){
+                    String type = (String)((JSONObject) this.attDescription.get(attName)).get("type");
+                    if(type.equals("numerical")){
+                        double[] minMax = new double[3];
+                        minMax[0] = Double.POSITIVE_INFINITY; //min
+                        minMax[1] = Double.NEGATIVE_INFINITY; //max
+                        minMax[0] = 0.0; //split: (max - min) / groupNum
+                        attMinMax.put(attName, minMax);
+
+                        int[] groupList = new int[GROUP_NUM];
+                        Arrays.fill(groupList, 0);
+                        attGroupList.put(attName, groupList);
+
+                        List<Double> splitPoint = new ArrayList<>();
+                        attSplitPoint.put(attName, splitPoint);
+                    }
+                }
+
+                for(Map.Entry<String, double[]> attValue : attMinMax.entrySet()) {
+                    for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
+                        Instance instance = originalData.instance(i);
+                        double attEventValue = instance.value(this.originalData.attribute(attValue.getKey()));
+                        if (attEventValue < attValue.getValue()[0]) {
+                            attValue.getValue()[0] = attEventValue;
+                        }
+                        if (attEventValue > attValue.getValue()[1]) {
+                            attValue.getValue()[1] = attEventValue;
+                        }
+                    }
+                }
+
+                this.data = new Instances(originalData);
+                for(Map.Entry<String, double[]> attValue : attMinMax.entrySet()) {
+                    attValue.getValue()[2] = (attValue.getValue()[1] - attValue.getValue()[0]) / GROUP_NUM;
+                    String attName = attValue.getKey();
+                    Attribute numericAttribute = this.originalData.attribute(attName);
+                    double minValue = attValue.getValue()[0];
+                    double split = attValue.getValue()[2];
+                    for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
+                        Instance instance = data.instance(i);
+                        double value = instance.value(numericAttribute);
+                        int index = (int) ((value - minValue) / split);
+                        if(index == GROUP_NUM) index--;
+                        attGroupList.get(attName)[index]++;
+                    }
+                }
+
+                int numAttributes = this.data.numAttributes();
+                for(Map.Entry<String, int[]> attValue : attGroupList.entrySet()) {
+                    String attName = attValue.getKey();
+                    double minValue = attMinMax.get(attName)[0];
+                    double maxValue = attValue.getValue()[1];
+                    double split = attMinMax.get(attName)[2];
+                    List<Double> splitPoint = attSplitPoint.get(attName);
+                    int[] groupList = attValue.getValue();
+                    int len = groupList.length;
+                    int maxNo = 0;
+                    int maxG = groupList[maxNo];
+                    int minG = groupList[0];
+                    for(int i = 1; i < len; i++){
+                        if(groupList[i] > maxG){
+                            maxNo = i;
+                            maxG = groupList[i];
+                        }
+                    }
+                    boolean flag = true;
+                    for(int i = maxNo - 1; i > -1; i--){
+                        if(flag){
+                            if(groupList[i] < maxG * LIMIT_RATE){
+                                splitPoint.add(minValue+i*split);
+                                minG = groupList[i];
+                                flag = false;
+                            }
+                        } else{
+                            if(groupList[i] > minG / LIMIT_RATE){
+                                maxG = groupList[i];
+                                flag = true;
+                            }
+                        }
+                    }
+                    for(int i = maxNo + 1; i < len; i++){
+                        if(flag){
+                            if(groupList[i] < maxG * LIMIT_RATE){
+                                splitPoint.add(minValue+i*split);
+                                minG = groupList[i];
+                                flag = false;
+                            }
+                        } else{
+                            if(groupList[i] > minG / LIMIT_RATE){
+                                maxG = groupList[i];
+                                flag = true;
+                            }
+                        }
+                    }
+                    Attribute numericAttribute = this.originalData.attribute(attName);
+                    if(splitPoint.size() == 0) { // 2分点(中位数)
+                        Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
+                        Set<Double> sortedKeySet = new TreeSet<>(Comparator.naturalOrder());
+                        int cnt = 0;
+                        Iterator<Double> it = sortedKeySet.iterator();
+                        while(it.hasNext()){
+                            double value = it.next();
+                            cnt+=eventCount.get(value);
+                            if(cnt > numAttributes / 2){
+                                splitPoint.add(value);
+                                break;
+                            }
+                        }
+                    }
+
+                    /* split the numeric data */
+                    List<String> attributeValues = new ArrayList<>();
+                    attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + splitPoint.get(0)) + "]");
+                    for(int i = 0, size = splitPoint.size()-1; i < size; i++){
+                        String category = "(" + df.format(minValue + splitPoint.get(i)) + "~" + df.format(minValue + splitPoint.get(i+1)) + "]";
+                        attributeValues.add(category);
+                    }
+                    attributeValues.add("(" + df.format(minValue + splitPoint.get(splitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+                    Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
+                    this.data.insertAttributeAt(categoryAttribute, numAttributes++);
+                    for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+                        Instance instance = this.data.instance(i);
+                        double value = instance.value(numericAttribute);
+                        int index = 0, size = splitPoint.size();
+                        for(; index < size; index++){
+                            if(value <= splitPoint.get(index)){
+                                break;
+                            }
+                        }
+                        instance.setValue(numAttributes-1, index);
+                    }
+                }
+
+                for(int i = 0; i < numAttributes; i++){
+                    Attribute attribute = this.data.attribute(i);
+                    if(attribute.isNumeric()){
+                        this.data.deleteAttributeAt(i);
+                        i--;numAttributes--;
+                    } else if(attribute.name().startsWith("_")){
+                        this.data.renameAttribute(i, attribute.name().substring(1));
+                    }
+                }
+            } break;
+            default: break;
+        }
+        /* trim the data by selected attributes */
+        this.data.setClassIndex(this.data.numAttributes() - 1);
+        for(int i = 0, len_i = this.data.numAttributes(); i < len_i; i++){
+            if(!this.allAttName.contains(this.data.attribute(i).name())){
+                this.data.deleteAttributeAt(i);
+                i--; len_i--;
+            }else{
+                this.data.setClassIndex(i);
+            }
+        }
+        System.out.println("");
+    }
+
+    private Map<Double, Integer> getNumericEventCount(Attribute numericAttribute){
+        Map<Double, Integer> eventCount = new TreeMap<>();
+        for (int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++) {
+            Instance instance = this.originalData.instance(i);
+            double value = instance.value(numericAttribute);
+            if(eventCount.containsKey(value)) {
+                eventCount.put(value, eventCount.get(value)+1);
+            } else{
+                eventCount.put(value, 1);
+            }
+        }
+        return eventCount;
     }
     /**
      * used for function test
