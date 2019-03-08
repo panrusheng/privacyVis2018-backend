@@ -140,6 +140,9 @@ public class Bayes {
     private HashMap<String, Integer> priorMap;
     private Map<Integer, Set<Triple<Integer, Double, JSONArray>>> linksMap; // source -> Set<target>
     private BiMap<String, Integer> nodesMap;
+    private Map<String, double[]> attMinMax;
+    private Map<String, int[]> attGroupList;
+    private Map<String, List<Double>> attSplitPoint;
 
     public void setRiskLimit(double riskLimit){
         this.riskLimit = riskLimit;
@@ -637,14 +640,11 @@ public class Bayes {
             switch(type){
                 case "numerical": {
                     try{
-                        Attribute attribute = this.originalData.attribute(attName);
-                        Map<Double, Integer> eventCount = getNumericEventCount(attribute);
-                        for(Double key : eventCount.keySet()){
-                            JSONObject dataItem = new JSONObject();
-                            dataItem.put("label", key);
-                            dataItem.put("value", eventCount.get(key));
-                            dataList.add(dataItem);
-                        }
+                        JSONObject dataItem = new JSONObject();
+                        dataItem.put("range", "["+this.attMinMax.get(attName)[0]+", "+this.attMinMax.get(attName)[1]+"]");
+                        dataItem.put("list", this.attGroupList.get(attName));
+                        dataItem.put("splitPoints", this.attSplitPoint.get(attName));
+                        dataList.add(dataItem);
                     } catch(Exception e){
                         e.printStackTrace();
                     }
@@ -798,13 +798,10 @@ public class Bayes {
                     e.printStackTrace();
                 }
             } break;
-            case "default":{
-
-            } break;
             case "p-v":{
-                Map<String, double[]> attMinMax = new HashMap<>();
-                Map<String, int[]> attGroupList = new HashMap<>();
-                Map<String, List<Double>> attSplitPoint = new HashMap<>();
+                this.attMinMax = new HashMap<>();
+                this.attGroupList = new HashMap<>();
+                this.attSplitPoint = new HashMap<>();
 
                 for(String attName : this.allAttName){
                     String type = (String)((JSONObject) this.attDescription.get(attName)).get("type");
@@ -813,18 +810,18 @@ public class Bayes {
                         minMax[0] = Double.POSITIVE_INFINITY; //min
                         minMax[1] = Double.NEGATIVE_INFINITY; //max
                         minMax[0] = 0.0; //split: (max - min) / groupNum
-                        attMinMax.put(attName, minMax);
+                        this.attMinMax.put(attName, minMax);
 
                         int[] groupList = new int[GROUP_NUM];
                         Arrays.fill(groupList, 0);
-                        attGroupList.put(attName, groupList);
+                        this.attGroupList.put(attName, groupList);
 
                         List<Double> splitPoint = new ArrayList<>();
-                        attSplitPoint.put(attName, splitPoint);
+                        this.attSplitPoint.put(attName, splitPoint);
                     }
                 }
 
-                for(Map.Entry<String, double[]> attValue : attMinMax.entrySet()) {
+                for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
                     for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
                         Instance instance = originalData.instance(i);
                         double attEventValue = instance.value(this.originalData.attribute(attValue.getKey()));
@@ -838,7 +835,7 @@ public class Bayes {
                 }
 
                 this.data = new Instances(originalData);
-                for(Map.Entry<String, double[]> attValue : attMinMax.entrySet()) {
+                for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
                     attValue.getValue()[2] = (attValue.getValue()[1] - attValue.getValue()[0]) / GROUP_NUM;
                     String attName = attValue.getKey();
                     Attribute numericAttribute = this.originalData.attribute(attName);
@@ -849,17 +846,17 @@ public class Bayes {
                         double value = instance.value(numericAttribute);
                         int index = (int) ((value - minValue) / split);
                         if(index == GROUP_NUM) index--;
-                        attGroupList.get(attName)[index]++;
+                        this.attGroupList.get(attName)[index]++;
                     }
                 }
 
                 int numAttributes = this.data.numAttributes();
-                for(Map.Entry<String, int[]> attValue : attGroupList.entrySet()) {
+                for(Map.Entry<String, int[]> attValue : this.attGroupList.entrySet()) {
                     String attName = attValue.getKey();
-                    double minValue = attMinMax.get(attName)[0];
+                    double minValue = this.attMinMax.get(attName)[0];
                     double maxValue = attValue.getValue()[1];
-                    double split = attMinMax.get(attName)[2];
-                    List<Double> splitPoint = attSplitPoint.get(attName);
+                    double split = this.attMinMax.get(attName)[2];
+                    List<Double> splitPoint = this.attSplitPoint.get(attName);
                     int[] groupList = attValue.getValue();
                     int len = groupList.length;
                     int maxNo = 0;
