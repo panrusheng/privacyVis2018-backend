@@ -90,7 +90,10 @@ public class UserController {
 
     @RequestMapping(value = "get_test", method = RequestMethod.POST)
     public String get_test(HttpServletRequest request) {
-        //Todo
-        return "";
+        String model = request.getParameter("method");
+
+        JSONObject options = JSON.parseObject(request.getParameter("options"));
+
+        return bn.getTest(model, options).toJSONString();
     }
 }

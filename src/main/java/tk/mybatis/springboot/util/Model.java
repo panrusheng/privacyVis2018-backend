@@ -1,5 +1,6 @@
 package tk.mybatis.springboot.util;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import weka.classifiers.Classifier;
 import weka.classifiers.bayes.BayesNet;
@@ -16,6 +17,8 @@ import weka.filters.unsupervised.attribute.Discretize;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.LinkedList;
+import java.util.List;
 
 enum ClassifierModel {
     SVM, RandomForest, BayesianNetwork, KNN, DecisionTree
@@ -31,9 +34,12 @@ enum Distance {
 
 public class Model {
     private static void setOptions(Classifier model, JSONObject options) throws Exception {
+        if (options == null) return;
+
         if (model instanceof LibSVM) {
             if (options.getInteger("kernelType") != null) {
                 ((LibSVM)model).setKernelType(new SelectedTag(options.getIntValue("kernelType"), LibSVM.TAGS_KERNELTYPE));
+
             }
             if (options.getInteger("degree") != null) {
                 ((LibSVM)model).setDegree(options.getIntValue("degree"));
@@ -155,6 +161,7 @@ public class Model {
             if (options.containsKey("subtreeRaising")) {
                 ((J48)model).setSubtreeRaising(options.getBooleanValue("subtreeRaising"));
             }
+
         }
     }
 
@@ -169,24 +176,66 @@ public class Model {
         }
     }
 
-    public static void classify(String classifier, Instances instances, JSONObject options) throws Exception {
-        Classifier model = getModel(classifier);
-        setOptions(model, options);
+    public static JSONArray test(String classifier, Instances oriD, Instances proD, JSONObject options) throws Exception {
+        Classifier modelOriD = getModel(classifier);
+        Classifier modelProD = getModel(classifier);
+        setOptions(modelOriD, options);
+        setOptions(modelProD, options);
 
-        model.buildClassifier(instances);
-        Attribute classAtt = instances.classAttribute();
+        JSONArray list = new JSONArray();
+
+        modelOriD.buildClassifier(oriD);
+        modelProD.buildClassifier(proD);
+
+        Attribute classAtt = oriD.classAttribute();
         String attName = classAtt.name();
         int numVals = classAtt.numValues();
 
         for (int i = 0; i < numVals; ++i) {
+            JSONObject event = new JSONObject();
             String value = classAtt.value(i);
             String eventName = attName + ": " + value;
 
+            int frequency = 0;
             int tp, tn, fp, fn;
             tp = tn = fp = fn = 0;
 
-            for (Instance instance : instances) {
-                String predictVal = classAtt.value((int) model.classifyInstance(instance));
+            for (Instance instance : oriD) {
+                String predictVal = classAtt.value((int) modelOriD.classifyInstance(instance));
+                String realVal = instance.stringValue(classAtt);
+
+                if (realVal.equals(value)) {
+                    if (predictVal.equals(value)) {
+                        tp++;
+                    } else {
+                        fn++;
+                    }
+                } else {
+                    if (!predictVal.equals(value)) {
+                        tn++;
+                    } else {
+                        fp++;
+                    }
+                }
+                if (realVal.equals(value)) {
+                    frequency++;
+                }
+            }
+
+            JSONObject measure = new JSONObject();
+            measure.put("TP", tp);
+            measure.put("TN", tn);
+            measure.put("FP", fp);
+            measure.put("FN", fn);
+            measure.put("sensitivity", (double)tp / (tp + fn));
+            measure.put("specificity", (double)tn / (tn + fp));
+
+            event.put("oriD", measure);
+
+            tp = tn = fp = fn = 0;
+
+            for (Instance instance : proD) {
+                String predictVal = classAtt.value((int) modelOriD.classifyInstance(instance));
                 String realVal = instance.stringValue(classAtt);
 
                 if (realVal.equals(value)) {
@@ -204,8 +253,22 @@ public class Model {
                 }
             }
 
-            System.out.printf("%s %d, %d, %d, %d\n", eventName, tp, tn, fp, fn);
+            measure = new JSONObject();
+            measure.put("TP", tp);
+            measure.put("TN", tn);
+            measure.put("FP", fp);
+            measure.put("FN", fn);
+            measure.put("sensitivity", (double)tp / (tp + fn));
+            measure.put("specificity", (double)tn / (tn + fp));
+
+            event.put("proD", measure);
+            event.put("eveName", eventName);
+            event.put("frequency", frequency);
+            list.add(event);
+            // System.out.printf("%s %d, %d, %d, %d\n", eventName, tp, tn, fp, fn);
         }
+
+        return list;
     }
 
     public static void main(String[] args) throws Exception {
@@ -218,7 +281,11 @@ public class Model {
         instances = Filter.useFilter(instances, discretize);
         instances.setClassIndex(instances.numAttributes() - 1);
         JSONObject options = new JSONObject();
-        options.put("searchAlgorithm", "BallTree");
-        Model.classify("DecisionTree", instances, options);
+        options.put("distanceWeighting", 1);
+        for (Tag t : IBk.TAGS_WEIGHTING) {
+            System.out.println(t.getReadable());
+        }
+
+        System.out.println(Model.test("KNN", instances, instances, options));
     }
 }

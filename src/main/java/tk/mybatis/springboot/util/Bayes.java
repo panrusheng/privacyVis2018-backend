@@ -134,6 +134,7 @@ public class Bayes {
     private JSONObject attDescription;
     private Instances originalData;
     private Instances data;
+    private Instances dataAggregated;
     private List<String> allAttName;
     private Map<String, Boolean> allAttSensitivity;
     private Map<String, Double> utilityMap;
@@ -978,6 +979,8 @@ public class Bayes {
                 this.data.setClassIndex(i);
             }
         }
+
+        this.dataAggregated = new Instances(data);
         System.out.println("");
     }
 
@@ -994,6 +997,26 @@ public class Bayes {
         }
         return eventCount;
     }
+
+    public JSONArray getTest(String classifier, JSONObject options) {
+        JSONArray result = new JSONArray();
+        for (String attName : allAttName) {
+            if (allAttSensitivity.containsKey(attName) && allAttSensitivity.get(attName)) {
+                Attribute classAtt = data.attribute(attName);
+                data.setClass(classAtt);
+                dataAggregated.setClass(classAtt);
+                try {
+                    JSONArray tRes = Model.test(classifier, dataAggregated, data, options);
+                    result.addAll(tRes);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        return result;
+    }
+
     /**
      * used for function test
      * @param args
@@ -1005,6 +1028,12 @@ public class Bayes {
         test.add(new DataSegment(2, 3));
         test.contains(new DataSegment(2,4));
         test.contains(new DataSegment(3,5));
+
+        String li = "[{\"attName\":\"fmp\",\"sensitive\":false},{\"attName\":\"emp\",\"sensitive\":true},{\"attName\":\"gen\",\"sensitive\":false},{\"attName\":\"gcs\",\"sensitive\":false},{\"attName\":\"cat\",\"sensitive\":false},{\"attName\":\"fue\",\"sensitive\":false},{\"attName\":\"sch\",\"sensitive\":false}]";
+        List<JSONObject> arr = JSON.parseArray(li, JSONObject.class);
+
+        bn.getGBN(arr);
+        bn.getTest("KNN", null);
     }
 }
 
