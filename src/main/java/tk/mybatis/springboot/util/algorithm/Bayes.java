@@ -1,4 +1,4 @@
-package tk.mybatis.springboot.util;
+package tk.mybatis.springboot.util.algorithm;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;

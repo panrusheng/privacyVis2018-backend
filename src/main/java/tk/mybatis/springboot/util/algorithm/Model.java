@@ -1,4 +1,4 @@
-package tk.mybatis.springboot.util;
+package tk.mybatis.springboot.util.algorithm;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -17,8 +17,6 @@ import weka.filters.unsupervised.attribute.Discretize;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.util.LinkedList;
-import java.util.List;
 
 enum ClassifierModel {
     SVM, RandomForest, BayesianNetwork, KNN, DecisionTree

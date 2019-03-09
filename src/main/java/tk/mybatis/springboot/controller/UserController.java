@@ -10,7 +10,7 @@ import tk.mybatis.springboot.service.UserService;
 import java.io.BufferedReader;
 import java.util.List;
 
-import tk.mybatis.springboot.util.Bayes;
+import tk.mybatis.springboot.util.algorithm.Bayes;
 
 import javax.servlet.http.HttpServletRequest;
 
