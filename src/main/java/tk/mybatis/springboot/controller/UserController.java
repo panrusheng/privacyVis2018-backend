@@ -55,6 +55,23 @@ public class UserController {
         }
     }
 
+    @RequestMapping(value = "edit_gbn", method = RequestMethod.POST)
+    public String edit_gbn(HttpServletRequest request){
+        StringBuilder buffer = new StringBuilder();
+        String line;
+        try {
+            BufferedReader reader = request.getReader();
+            while ((line = reader.readLine()) != null) {
+                buffer.append(line);
+            }
+        } catch (Exception e) {
+
+        }
+        JSONObject parameters = JSON.parseObject(buffer.toString());
+        List<JSONObject> events = JSON.parseArray(parameters.getString("events"), JSONObject.class);
+        return bn.editGBN(events);
+    }
+
     @RequestMapping(value = "get_recommendation", method = RequestMethod.POST)
     public String get_recommendation(HttpServletRequest request) {
         StringBuilder buffer = new StringBuilder();

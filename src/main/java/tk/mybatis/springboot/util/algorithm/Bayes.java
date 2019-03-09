@@ -179,6 +179,77 @@ public class Bayes {
         return gbn.toJSONString();
     }
 
+    public String editGBN(List<JSONObject> events){
+        int numAttributes = this.data.numAttributes();
+        List<String> editAttName = new ArrayList<>();
+        for(JSONObject attInfo : events){
+            String attName = attInfo.getString("attrName");
+            editAttName.add(attName);
+            Attribute attribute = this.originalData.attribute(attName);
+            if(attInfo.containsKey("groups")){ //category
+                JSONArray categories = attInfo.getJSONObject("groups").getJSONArray("categories");
+                String newEventName = attInfo.getJSONObject("groups").getString("name");
+                List<String> newAttributeValues = new ArrayList<>();
+                Enumeration e = attribute.enumerateValues();
+                while(e.hasMoreElements()){
+                    newAttributeValues.add((String)e.nextElement());
+                }
+                for(Object eventName : categories){
+                    newAttributeValues.remove(eventName);
+                }
+                newAttributeValues.add(newEventName);
+                Attribute newCategoryAttribute = new Attribute("_"+attName, newAttributeValues);
+                this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
+                for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+                    Instance instance = this.data.instance(i);
+                    if(categories.contains(instance.stringValue(attribute))){
+                        instance.setValue(numAttributes - 1, newEventName);
+                    }
+                }
+            } else{ //numeric
+                JSONArray jsonNewSplitPoint = attInfo.getJSONArray("splitPoints");
+                List<Double> newSplitPoint = new ArrayList<>();
+                for(Object splitPoint : jsonNewSplitPoint){
+                    newSplitPoint.add(Double.parseDouble(splitPoint.toString()));
+                }
+                double minValue = this.attMinMax.get(attName)[0];
+                double maxValue = this.attMinMax.get(attName)[1];
+                List<String> attributeValues = new ArrayList<>();
+                attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + newSplitPoint.get(0)) + "]");
+                for(int i = 0, size = newSplitPoint.size()-1; i < size; i++){
+                    String category = "(" + df.format(minValue + newSplitPoint.get(i)) + "~" + df.format(minValue + newSplitPoint.get(i+1)) + "]";
+                    attributeValues.add(category);
+                }
+                attributeValues.add("(" + df.format(minValue + newSplitPoint.get(newSplitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+                Attribute newCategoryAttribute = new Attribute("_"+attName, attributeValues);
+                this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
+                for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+                    Instance instance = this.data.instance(i); // to write
+                    Instance instanceOrignal = this.originalData.instance(i); // to read
+                    double value = instanceOrignal.value(attribute);
+                    int index = 0, size = newSplitPoint.size();
+                    for(; index < size; index++){
+                        if(value <= newSplitPoint.get(index)){
+                            break;
+                        }
+                    }
+                    instance.setValue(numAttributes - 1, index);
+                }
+            }
+            this.data.setClassIndex(numAttributes-1);
+            for(int i = 0; i < numAttributes; i++){
+                Attribute attribute_i = this.data.attribute(i);
+                if(attribute_i.name().equals(attName)){
+                    this.data.deleteAttributeAt(i);
+                    i--;numAttributes--;
+                } else if(attribute_i.name().startsWith("_")){
+                    this.data.renameAttribute(i, attribute_i.name().substring(1));
+                }
+            }
+        }
+        return getGlobalGBN("K2").toJSONString();
+    }
+
     public String getRecommendation(List<JSONObject> links, List<JSONObject> utilityList){
         /* edit gbn */
         for(JSONObject link : links){
@@ -328,8 +399,11 @@ public class Bayes {
             this.allAttSensitivity.put(attName, (Boolean)att.get("sensitive"));
         }
         initUtilityMap();
-        dataAggregate("p-v");
+        dataAggregate();
+        return getGlobalGBN(localSearchAlgorithm);
+    }
 
+    private JSONObject getGlobalGBN(String localSearchAlgorithm){
         JSONObject gbn = new JSONObject();
         JSONArray nodeList = new JSONArray();
         JSONArray linkList = new JSONArray();
@@ -493,7 +567,6 @@ public class Bayes {
         }
         return gbn;
     }
-
     /**
      *
      * @param group
@@ -806,168 +879,152 @@ public class Bayes {
         }
     }
 
-    private void dataAggregate(String mode){
-        switch (mode){
-            case "expired":{
-                try{
-                    Discretize discretize = new Discretize();
-                    discretize.setBins(2);
-                    discretize.setInputFormat(originalData);
-                    this.data = Filter.useFilter(originalData, discretize);
+    private void dataAggregate(){
+        this.attMinMax = new HashMap<>();
+        this.attGroupList = new HashMap<>();
+        this.attSplitPoint = new HashMap<>();
 
-                }catch (Exception e) {
-                    e.printStackTrace();
+        for(String attName : this.allAttName){
+            String type = (String)((JSONObject) this.attDescription.get(attName)).get("type");
+            if(type.equals("numerical")){
+                double[] minMax = new double[3];
+                minMax[0] = Double.POSITIVE_INFINITY; //min
+                minMax[1] = Double.NEGATIVE_INFINITY; //max
+                minMax[2] = 0.0; //split: (max - min) / groupNum
+                this.attMinMax.put(attName, minMax);
+
+                int[] groupList = new int[GROUP_NUM];
+                Arrays.fill(groupList, 0);
+                this.attGroupList.put(attName, groupList);
+
+                List<Double> splitPoint = new ArrayList<>();
+                this.attSplitPoint.put(attName, splitPoint);
+            }
+        }
+
+        for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
+            for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
+                Instance instance = originalData.instance(i);
+                double attEventValue = instance.value(this.originalData.attribute(attValue.getKey()));
+                if (attEventValue < attValue.getValue()[0]) {
+                    attValue.getValue()[0] = attEventValue;
                 }
-            } break;
-            case "p-v":{
-                this.attMinMax = new HashMap<>();
-                this.attGroupList = new HashMap<>();
-                this.attSplitPoint = new HashMap<>();
-
-                for(String attName : this.allAttName){
-                    String type = (String)((JSONObject) this.attDescription.get(attName)).get("type");
-                    if(type.equals("numerical")){
-                        double[] minMax = new double[3];
-                        minMax[0] = Double.POSITIVE_INFINITY; //min
-                        minMax[1] = Double.NEGATIVE_INFINITY; //max
-                        minMax[2] = 0.0; //split: (max - min) / groupNum
-                        this.attMinMax.put(attName, minMax);
-
-                        int[] groupList = new int[GROUP_NUM];
-                        Arrays.fill(groupList, 0);
-                        this.attGroupList.put(attName, groupList);
-
-                        List<Double> splitPoint = new ArrayList<>();
-                        this.attSplitPoint.put(attName, splitPoint);
-                    }
+                if (attEventValue > attValue.getValue()[1]) {
+                    attValue.getValue()[1] = attEventValue;
                 }
+            }
+        }
 
-                for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
-                    for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
-                        Instance instance = originalData.instance(i);
-                        double attEventValue = instance.value(this.originalData.attribute(attValue.getKey()));
-                        if (attEventValue < attValue.getValue()[0]) {
-                            attValue.getValue()[0] = attEventValue;
-                        }
-                        if (attEventValue > attValue.getValue()[1]) {
-                            attValue.getValue()[1] = attEventValue;
-                        }
-                    }
+        this.data = new Instances(originalData);
+        for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
+            attValue.getValue()[2] = (attValue.getValue()[1] - attValue.getValue()[0]) / GROUP_NUM;
+            String attName = attValue.getKey();
+            Attribute numericAttribute = this.originalData.attribute(attName);
+            double minValue = attValue.getValue()[0];
+            double split = attValue.getValue()[2];
+            for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
+                Instance instance = data.instance(i);
+                double value = instance.value(numericAttribute);
+                int index = (int) ((value - minValue) / split);
+                if(index == GROUP_NUM) index--;
+                this.attGroupList.get(attName)[index]++;
+            }
+        }
+
+        int numAttributes = this.data.numAttributes();
+        for(Map.Entry<String, int[]> attValue : this.attGroupList.entrySet()) {
+            String attName = attValue.getKey();
+            double minValue = this.attMinMax.get(attName)[0];
+            double maxValue = this.attMinMax.get(attName)[1];
+            double split = this.attMinMax.get(attName)[2];
+            List<Double> splitPoint = this.attSplitPoint.get(attName);
+            int[] groupList = attValue.getValue();
+            int len = groupList.length;
+            int maxNo = 0;
+            int maxG = groupList[maxNo];
+            int minG = groupList[0];
+            for(int i = 1; i < len; i++){
+                if(groupList[i] > maxG){
+                    maxNo = i;
+                    maxG = groupList[i];
                 }
-
-                this.data = new Instances(originalData);
-                for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
-                    attValue.getValue()[2] = (attValue.getValue()[1] - attValue.getValue()[0]) / GROUP_NUM;
-                    String attName = attValue.getKey();
-                    Attribute numericAttribute = this.originalData.attribute(attName);
-                    double minValue = attValue.getValue()[0];
-                    double split = attValue.getValue()[2];
-                    for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
-                        Instance instance = data.instance(i);
-                        double value = instance.value(numericAttribute);
-                        int index = (int) ((value - minValue) / split);
-                        if(index == GROUP_NUM) index--;
-                        this.attGroupList.get(attName)[index]++;
+            }
+            boolean flag = true;
+            for(int i = maxNo - 1; i > -1; i--){
+                if(flag){
+                    if(groupList[i] < maxG * LIMIT_RATE){
+                        splitPoint.add(minValue+i*split);
+                        minG = groupList[i];
+                        flag = false;
                     }
-                }
-
-                int numAttributes = this.data.numAttributes();
-                for(Map.Entry<String, int[]> attValue : this.attGroupList.entrySet()) {
-                    String attName = attValue.getKey();
-                    double minValue = this.attMinMax.get(attName)[0];
-                    double maxValue = this.attMinMax.get(attName)[1];
-                    double split = this.attMinMax.get(attName)[2];
-                    List<Double> splitPoint = this.attSplitPoint.get(attName);
-                    int[] groupList = attValue.getValue();
-                    int len = groupList.length;
-                    int maxNo = 0;
-                    int maxG = groupList[maxNo];
-                    int minG = groupList[0];
-                    for(int i = 1; i < len; i++){
-                        if(groupList[i] > maxG){
-                            maxNo = i;
-                            maxG = groupList[i];
-                        }
-                    }
-                    boolean flag = true;
-                    for(int i = maxNo - 1; i > -1; i--){
-                        if(flag){
-                            if(groupList[i] < maxG * LIMIT_RATE){
-                                splitPoint.add(minValue+i*split);
-                                minG = groupList[i];
-                                flag = false;
-                            }
-                        } else{
-                            if(groupList[i] > minG / LIMIT_RATE){
-                                maxG = groupList[i];
-                                flag = true;
-                            }
-                        }
-                    }
-                    for(int i = maxNo + 1; i < len; i++){
-                        if(flag){
-                            if(groupList[i] < maxG * LIMIT_RATE){
-                                splitPoint.add(minValue+i*split);
-                                minG = groupList[i];
-                                flag = false;
-                            }
-                        } else{
-                            if(groupList[i] > minG / LIMIT_RATE){
-                                maxG = groupList[i];
-                                flag = true;
-                            }
-                        }
-                    }
-                    Attribute numericAttribute = this.originalData.attribute(attName);
-                    if(splitPoint.size() == 0) { // 2分点(中位数)
-                        Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
-                        Set<Double> sortedKeySet = new TreeSet<>(Comparator.naturalOrder());
-                        int cnt = 0;
-                        Iterator<Double> it = sortedKeySet.iterator();
-                        while(it.hasNext()){
-                            double value = it.next();
-                            cnt+=eventCount.get(value);
-                            if(cnt > numAttributes / 2){
-                                splitPoint.add(value);
-                                break;
-                            }
-                        }
-                    }
-
-                    /* split the numeric data */
-                    List<String> attributeValues = new ArrayList<>();
-                    attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + splitPoint.get(0)) + "]");
-                    for(int i = 0, size = splitPoint.size()-1; i < size; i++){
-                        String category = "(" + df.format(minValue + splitPoint.get(i)) + "~" + df.format(minValue + splitPoint.get(i+1)) + "]";
-                        attributeValues.add(category);
-                    }
-                    attributeValues.add("(" + df.format(minValue + splitPoint.get(splitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
-                    Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
-                    this.data.insertAttributeAt(categoryAttribute, numAttributes++);
-                    for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
-                        Instance instance = this.data.instance(i);
-                        double value = instance.value(numericAttribute);
-                        int index = 0, size = splitPoint.size();
-                        for(; index < size; index++){
-                            if(value <= splitPoint.get(index)){
-                                break;
-                            }
-                        }
-                        instance.setValue(numAttributes-1, index);
+                } else{
+                    if(groupList[i] > minG / LIMIT_RATE){
+                        maxG = groupList[i];
+                        flag = true;
                     }
                 }
-
-                for(int i = 0; i < numAttributes; i++){
-                    Attribute attribute = this.data.attribute(i);
-                    if(attribute.isNumeric()){
-                        this.data.deleteAttributeAt(i);
-                        i--;numAttributes--;
-                    } else if(attribute.name().startsWith("_")){
-                        this.data.renameAttribute(i, attribute.name().substring(1));
+            }
+            for(int i = maxNo + 1; i < len; i++){
+                if(flag){
+                    if(groupList[i] < maxG * LIMIT_RATE){
+                        splitPoint.add(minValue+i*split);
+                        minG = groupList[i];
+                        flag = false;
+                    }
+                } else{
+                    if(groupList[i] > minG / LIMIT_RATE){
+                        maxG = groupList[i];
+                        flag = true;
                     }
                 }
-            } break;
-            default: break;
+            }
+            Attribute numericAttribute = this.originalData.attribute(attName);
+            if(splitPoint.size() == 0) { // 2分点(中位数)
+                Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
+                Set<Double> sortedKeySet = new TreeSet<>(Comparator.naturalOrder());
+                int cnt = 0;
+                Iterator<Double> it = sortedKeySet.iterator();
+                while(it.hasNext()){
+                    double value = it.next();
+                    cnt+=eventCount.get(value);
+                    if(cnt > numAttributes / 2){
+                        splitPoint.add(value);
+                        break;
+                    }
+                }
+            }
+
+            /* split the numeric data */
+            List<String> attributeValues = new ArrayList<>();
+            attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + splitPoint.get(0)) + "]");
+            for(int i = 0, size = splitPoint.size()-1; i < size; i++){
+                String category = "(" + df.format(minValue + splitPoint.get(i)) + "~" + df.format(minValue + splitPoint.get(i+1)) + "]";
+                attributeValues.add(category);
+            }
+            attributeValues.add("(" + df.format(minValue + splitPoint.get(splitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+            Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
+            this.data.insertAttributeAt(categoryAttribute, numAttributes++);
+            for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+                Instance instance = this.data.instance(i);
+                double value = instance.value(numericAttribute);
+                int index = 0, size = splitPoint.size();
+                for(; index < size; index++){
+                    if(value <= splitPoint.get(index)){
+                        break;
+                    }
+                }
+                instance.setValue(numAttributes-1, index);
+            }
+        }
+
+        for(int i = 0; i < numAttributes; i++){
+            Attribute attribute = this.data.attribute(i);
+            if(attribute.isNumeric()){
+                this.data.deleteAttributeAt(i);
+                i--;numAttributes--;
+            } else if(attribute.name().startsWith("_")){
+                this.data.renameAttribute(i, attribute.name().substring(1));
+            }
         }
         /* trim the data by selected attributes */
         this.data.setClassIndex(this.data.numAttributes() - 1);
@@ -981,7 +1038,6 @@ public class Bayes {
         }
 
         this.dataAggregated = new Instances(data);
-        System.out.println("");
     }
 
     private Map<Double, Integer> getNumericEventCount(Attribute numericAttribute){
