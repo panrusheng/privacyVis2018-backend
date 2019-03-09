@@ -570,7 +570,7 @@ public class Bayes {
      */
     private JSONArray getLocalGBN() {
         Map<JSONArray, Integer> localGBNMap = new HashMap<>();
-        JSONArray jsonLocalGBN = new JSONArray();
+        List<JSONObject> localGBN = new ArrayList<>();
         for(Instance instance : this.data){
             JSONArray links = new JSONArray();
             Map<String, Integer> entityEventMap = new HashMap();
@@ -599,10 +599,7 @@ public class Bayes {
             }
         }
 
-        List<Map.Entry<JSONArray, Integer>> localGBNList = new ArrayList<>(localGBNMap.entrySet());
-        Collections.sort(localGBNList, (o1, o2) -> o2.getValue() - o1.getValue());
-
-        for(Map.Entry<JSONArray, Integer> gbn: localGBNList){
+        for(Map.Entry<JSONArray, Integer> gbn: localGBNMap.entrySet()){
             JSONObject group = new JSONObject();
             JSONArray links = gbn.getKey();
             Set<Integer> nodesSet = new HashSet<>();
@@ -622,8 +619,30 @@ public class Bayes {
             group.put("num", gbn.getValue());
             group.put("links", links);
             group.put("nodes", nodes);
-            jsonLocalGBN.add(group);
+            localGBN.add(group);
         }
+        Collections.sort(localGBN, (o1, o2) -> {
+            boolean risk1 = false, risk2 = false;
+            for(String sensitiveAtt : this.allAttSensitivity.keySet()){
+                if(this.allAttSensitivity.get(sensitiveAtt)){
+                    List<String> nodesOfO1 = o1.getJSONArray("nodes").stream()
+                            .map(d->((JSONObject)d).getString("id").split(": ")[0])
+                            .collect(Collectors.toList());
+                    risk1 = risk1 || nodesOfO1.contains(sensitiveAtt);
+                    List<String> nodesOfO2 = o2.getJSONArray("nodes").stream()
+                            .map(d->((JSONObject)d).getString("id").split(": ")[0])
+                            .collect(Collectors.toList());
+                    risk2 = risk2 || nodesOfO2.contains(sensitiveAtt);
+                }
+            }
+            if(risk1 == risk2){
+                return (o2.getIntValue("num") - o1.getIntValue("num"));
+            }
+            else{
+                return risk1? -1 : 1;
+            }
+        });
+        JSONArray jsonLocalGBN = JSONArray.parseArray(JSON.toJSONString(localGBN));
         return jsonLocalGBN;
     }
 
