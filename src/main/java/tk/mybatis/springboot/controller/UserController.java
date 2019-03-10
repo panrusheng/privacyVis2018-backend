@@ -93,9 +93,19 @@ public class UserController {
 
     @RequestMapping(value = "get_result", method = RequestMethod.POST)
     public String get_result(HttpServletRequest request) {
-        List<JSONObject> options = JSON.parseArray(request.getParameter("options"), JSONObject.class);
-        //Todo
-        return "";
+        StringBuilder buffer = new StringBuilder();
+        String line;
+        try {
+            BufferedReader reader = request.getReader();
+            while ((line = reader.readLine()) != null) {
+                buffer.append(line);
+            }
+        } catch (Exception e) {
+
+        }
+        JSONObject parameters = JSON.parseObject(buffer.toString());
+        List<JSONObject> options = JSON.parseArray(parameters.getString("options"), JSONObject.class);
+        return this.bn.getResult(options);
     }
 
     @RequestMapping(value = "set_trim", method = RequestMethod.POST)
