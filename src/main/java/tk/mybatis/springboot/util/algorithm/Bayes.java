@@ -186,25 +186,42 @@ public class Bayes {
         for(JSONObject attInfo : events){
             String attName = attInfo.getString("attrName");
             editAttName.add(attName);
-            Attribute attribute = this.originalData.attribute(attName);
+            Attribute attribute = this.data.attribute(attName);
             if(attInfo.containsKey("groups")){ //category
-                JSONArray categories = attInfo.getJSONObject("groups").getJSONArray("categories");
-                String newEventName = attInfo.getJSONObject("groups").getString("name");
+                List<JSONObject> groups = attInfo.getJSONArray("groups").toJavaList(JSONObject.class);
                 List<String> newAttributeValues = new ArrayList<>();
                 Enumeration e = attribute.enumerateValues();
                 while(e.hasMoreElements()){
                     newAttributeValues.add((String)e.nextElement());
                 }
-                for(Object eventName : categories){
-                    newAttributeValues.remove(eventName);
+
+                for (JSONObject g : groups) {
+                    JSONArray categories = g.getJSONArray("categories");
+                    String newEventName = g.getString("name");
+                    for(Object eventName : categories){
+                        newAttributeValues.remove(eventName);
+                    }
+                    newAttributeValues.add(newEventName);
                 }
-                newAttributeValues.add(newEventName);
+
+                int curAttIndex = numAttributes;
                 Attribute newCategoryAttribute = new Attribute("_"+attName, newAttributeValues);
-                this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
-                for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
-                    Instance instance = this.data.instance(i);
-                    if(categories.contains(instance.stringValue(attribute))){
-                        instance.setValue(numAttributes - 1, newEventName);
+                if (this.data.attribute("_" + attName) != null) {
+                    this.data.deleteAttributeAt(this.data.attribute("_" + attName).index());
+                    this.data.insertAttributeAt(newCategoryAttribute, numAttributes);
+                } else {
+                    this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
+                }
+
+                for (JSONObject g : groups) {
+                    JSONArray categories = g.getJSONArray("categories");
+                    String newEventName = g.getString("name");
+                    for (int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+                        Instance instance = this.data.instance(i);
+
+                        if (categories.contains(instance.stringValue(attribute))) {
+                            instance.setValue(curAttIndex, newEventName);
+                        }
                     }
                 }
             } else{ //numeric
@@ -248,6 +265,8 @@ public class Bayes {
                 }
             }
         }
+        
+        this.dataAggregated = new Instances(this.data);
         return getGlobalGBN("K2").toJSONString();
     }
 
@@ -609,8 +628,8 @@ public class Bayes {
                             String parentId = attParent + ": " + valParent;
                             JSONObject link = new JSONObject();
                             double[] cpt = new double[4]; //cpt = [ P(A), P(B), P(A|B), P(A|B') ]
-                            cpt[0] = (double)priorMap.get(parentId) / numInstances; //P(A)
-                            cpt[1] = (double)priorMap.get(childId) / numInstances; //P(B)
+                            cpt[0] = (priorMap.containsKey(parentId) ? (double)priorMap.get(parentId) : 0.0) / numInstances; //P(A)
+                            cpt[1] = (priorMap.containsKey(childId) ? (double)priorMap.get(childId) : 0.0) / numInstances; //P(B)
 
                             int cpt2_p = 0, cpt2_c = 0, cpt3_p = 0, cpt3_c = 0;
 
