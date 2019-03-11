@@ -440,19 +440,31 @@ public class Bayes {
                 String type = this.attDescription.getJSONObject(attName).getString("type");
                 result.put("type", type);
                 JSONArray dataList = new JSONArray();
+                List<JSONObject> _dataList = new ArrayList<>();
                 Enumeration e = this.data.attribute(attName).enumerateValues();
+                double minRate = Double.POSITIVE_INFINITY;
                 while(e.hasMoreElements()){
                     String category = (String)e.nextElement();
                     String eventName = attName+": "+category;
-                    int maxIndex = eventCntMap.get(eventName).size();
-                    for(int i = 0; i < maxIndex; i++){
-                        JSONObject data = new JSONObject();
-                        data.put("category", category);
-                        data.put("oriV", eventCntMap.get(eventName).get(0));
-                        data.put("curV", eventCntMap.get(eventName).get(i));
-                        data.put("triV", eventCntMap.get(eventName).get(maxIndex-1));
-                        dataList.add(data);
+                    JSONObject data = new JSONObject();
+                    int oriV = eventCntMap.get(eventName).get(0);
+                    int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
+                    data.put("category", category);
+                    data.put("oriV", oriV);
+                    data.put("curV", curV);
+                    double rate = (double)curV / oriV;
+                    if(rate < minRate){
+                        minRate = rate;
                     }
+                    _dataList.add(data);
+                }
+                for(JSONObject _data : _dataList){
+                    JSONObject data = new JSONObject();
+                    data.put("category", _data.getString("category"));
+                    data.put("oriV", _data.getIntValue("oriV"));
+                    data.put("curV", _data.getIntValue("curV"));
+                    data.put("triV", (int)(_data.getIntValue("oriV") * minRate));
+                    dataList.add(data);
                 }
                 if(type.equals("categorical")){
                     result.put("data", dataList);
