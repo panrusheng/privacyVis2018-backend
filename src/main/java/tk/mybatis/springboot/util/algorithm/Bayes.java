@@ -12,8 +12,6 @@ import weka.classifiers.bayes.net.search.local.*;
 import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.filters.Filter;
-import weka.filters.unsupervised.attribute.Discretize;
 
 import java.text.DecimalFormat;
 import java.io.File;
@@ -144,7 +142,8 @@ public class Bayes {
     private Map<String, double[]> attMinMax;
     private Map<String, int[]> attGroupList;
     private Map<String, List<Double>> attSplitPoint;
-    private JSONArray recommendationList;
+    private List<JSONObject> recommendationList;
+    private JSONArray recommendationTrimResult;
 
     public void setRiskLimit(double riskLimit){
         this.riskLimit = riskLimit;
@@ -293,7 +292,7 @@ public class Bayes {
         for(JSONObject utility: utilityList){
             this.utilityMap.put(utility.getString("attName"), utility.getDoubleValue("utility"));
         }
-        this.recommendationList = new JSONArray();
+        this.recommendationList = new ArrayList<>();
         JSONArray localGBN = getLocalGBN();
         int index = 0;
         for(Object _group : localGBN){
@@ -373,8 +372,23 @@ public class Bayes {
 
             this.recommendationList.add(recommendation);
         }
-
-        return this.recommendationList.toJSONString();
+        Collections.sort(this.recommendationList, (o1, o2) -> {
+            boolean risk1 = false, risk2 = false;
+            for(Object _delta : o1.getJSONObject("risk").values()){
+                double delta = Double.parseDouble(_delta.toString());
+                risk1 = risk1 ||  (delta>this.riskLimit);
+            }
+            for(Object _delta : o2.getJSONObject("risk").values()){
+                double delta = Double.parseDouble(_delta.toString());
+                risk2 = risk2 ||  (delta>this.riskLimit);
+            }
+            if(risk1 == risk2){
+                return o2.getIntValue("num") - o1.getIntValue("num");
+            } else {
+                return risk2 ? 1 : -1;
+            }
+        });
+        return JSONArray.parseArray(JSON.toJSONString(this.recommendationList)).toJSONString();
     }
 
     public String getResult(List<JSONObject> options){
@@ -387,7 +401,7 @@ public class Bayes {
             eventCntMap.put(eventName, eventCntSeq);
         }
         for(int i = 0, len_i = options.size(); i < len_i; i++){
-            JSONObject recommendation = this.recommendationList.getJSONObject(i);
+            JSONObject recommendation = this.recommendationList.get(i);
             if(recommendation.getJSONArray("recList").size() == 0) continue;
             JSONObject option = options.get(i);
             reviseLength++;
@@ -424,19 +438,9 @@ public class Bayes {
                 result.put("type", type);
                 JSONArray dataList = new JSONArray();
                 for(int i = 0, len_i = reviseLength; i < len_i; i++){
-                    String category = "";
-//                    JSONArray nodes = this.recommendationList.getJSONObject(i)
-//                            .getJSONObject("localGBN")
-//                            .getJSONArray("nodes");
-//                    for(Object _node : nodes){
-//                        JSONObject node = JSONObject.parseObject(_node.toString());
-//                        if(node.getString("id").split(": ")[0].equals(attName)){
-//                            category = node.getString("id").split(": ")[1];
-//                        }
-//                    }
                     Enumeration e = this.data.attribute(attName).enumerateValues();
                     while(e.hasMoreElements()){
-                        category = (String)e.nextElement();
+                        String category = (String)e.nextElement();
                         String eventName = attName+": "+category;
                         JSONObject data = new JSONObject();
                         data.put("category", category);
@@ -458,7 +462,16 @@ public class Bayes {
                 results.add(result);
             }
         }
+        this.recommendationTrimResult = results;
         return results.toJSONString();
+    }
+
+    public void setTrim(JSONObject attTrim){
+        for(String attName : this.allAttName){
+            if(attTrim.getBooleanValue(attName)){ //need to trim
+                //Todo
+            }
+        }
     }
 
     public JSONArray getTest(String classifier, JSONObject options) {
@@ -817,27 +830,7 @@ public class Bayes {
             group.put("nodes", nodes);
             localGBN.add(group);
         }
-        Collections.sort(localGBN, (o1, o2) -> {
-            boolean risk1 = false, risk2 = false;
-            for(String sensitiveAtt : this.allAttSensitivity.keySet()){
-                if(this.allAttSensitivity.get(sensitiveAtt)){
-                    List<String> nodesOfO1 = o1.getJSONArray("nodes").stream()
-                            .map(d->((JSONObject)d).getString("id").split(": ")[0])
-                            .collect(Collectors.toList());
-                    risk1 = risk1 || nodesOfO1.contains(sensitiveAtt);
-                    List<String> nodesOfO2 = o2.getJSONArray("nodes").stream()
-                            .map(d->((JSONObject)d).getString("id").split(": ")[0])
-                            .collect(Collectors.toList());
-                    risk2 = risk2 || nodesOfO2.contains(sensitiveAtt);
-                }
-            }
-            if(risk1 == risk2){
-                return (o2.getIntValue("num") - o1.getIntValue("num"));
-            }
-            else{
-                return risk1? -1 : 1;
-            }
-        });
+        Collections.sort(localGBN, (o1, o2) -> o2.getIntValue("num") - o1.getIntValue("num"));
         JSONArray jsonLocalGBN = JSONArray.parseArray(JSON.toJSONString(localGBN));
         return jsonLocalGBN;
     }
@@ -1174,6 +1167,12 @@ public class Bayes {
             }
         }
         return eventCount;
+    }
+
+    private void trimRecords(Instances data, String att, String event, int trimNum){
+        for(Instance instance : data){
+            //Todo
+        }
     }
 
     /**

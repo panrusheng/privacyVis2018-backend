@@ -109,10 +109,9 @@ public class UserController {
     }
 
     @RequestMapping(value = "set_trim", method = RequestMethod.POST)
-    public String set_trim(HttpServletRequest request) {
-        List<JSONObject> options = JSON.parseArray(request.getParameter("options"), JSONObject.class);
-        //Todo
-        return "";
+    public void set_trim(HttpServletRequest request) {
+        JSONObject options = JSONObject.parseObject(request.getParameter("options"));
+        this.bn.setTrim(options);
     }
 
     @RequestMapping(value = "get_test", method = RequestMethod.POST)
