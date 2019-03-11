@@ -19,6 +19,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 enum LocalSearchAlgorithm {
     K2, GeneticSearch, HillClimber, LAGDHillClimber, LocalScoreSearchAlgorithm,
@@ -144,6 +145,7 @@ public class Bayes {
     private Map<String, List<Double>> attSplitPoint;
     private List<JSONObject> recommendationList;
     private JSONArray recommendationTrimResult;
+    private List<JSONObject> selectionOption = new ArrayList<>();
 
     public void setRiskLimit(double riskLimit){
         this.riskLimit = riskLimit;
@@ -394,6 +396,7 @@ public class Bayes {
     }
 
     public String getResult(List<JSONObject> options){
+        this.selectionOption = options;
         JSONArray results = new JSONArray();
         Map<String, List<Integer>> eventCntMap = new HashMap<>();
         int reviseLength = 0;
@@ -493,7 +496,9 @@ public class Bayes {
         }
     }
 
-    public JSONArray getTest(String classifier, JSONObject options) {
+    public JSONArray getTest(String classifier, JSONObject modelOptions, List<String> trimList) {
+        Instances proD = this.trimData(trimList, this.selectionOption);
+
         JSONArray result = new JSONArray();
         for (String attName : allAttName) {
             if (allAttSensitivity.containsKey(attName) && allAttSensitivity.get(attName)) {
@@ -501,7 +506,7 @@ public class Bayes {
                 data.setClass(classAtt);
                 dataAggregated.setClass(classAtt);
                 try {
-                    JSONArray tRes = Model.test(classifier, dataAggregated, data, options);
+                    JSONArray tRes = Model.test(classifier, dataAggregated, proD, modelOptions);
                     result.addAll(tRes);
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -511,6 +516,7 @@ public class Bayes {
 
         return result;
     }
+
 
     private void initOriginalData(){
         try {
@@ -1201,9 +1207,121 @@ public class Bayes {
         return eventCount;
     }
 
-    private void trimRecords(Instances data, String att, String event, int trimNum){
-        for(Instance instance : data){
-            //Todo
+    private Instances trimData(List<String> trimList, List<JSONObject> delList) {
+        Instances result = new Instances(this.data);
+        IntStream.range(0, delList.size()).forEach((int idx) -> {
+            JSONObject option = delList.get(idx);
+            if (option == null) return;
+            List<JSONObject> records = this.recommendationList.get(idx).getJSONArray("records").toJavaList(JSONObject.class);
+            if (option.getBooleanValue("flag")) { // all group;
+                int no = option.getIntValue("no");
+                List<Integer> deletedEvents = this.recommendationList.get(idx).getJSONArray("recList").getJSONObject(no).getJSONArray("dL").toJavaList(Integer.class);
+
+                deletedEvents.forEach((Integer eventNo) -> {
+                    String deleteEventName = this.nodesMap.inverse().get(eventNo);
+                    String attName = deleteEventName.split(": ")[0];
+                    String value = deleteEventName.split(": ")[1];
+                    Attribute att = result.attribute(attName);
+
+                    records.forEach((JSONObject record) -> {
+                        int id = record.getIntValue("id");
+                        result.instance(id).setMissing(att);
+                    });
+                });
+            } else {
+                JSONArray selectionList = option.getJSONArray("selectionList");
+                for (int i = 0; i < selectionList.size(); ++i) {
+                    List<Integer> recordIds = selectionList.getJSONArray(i).toJavaList(Integer.class);
+                    List<Integer> deletedEvents = this.recommendationList.get(idx).getJSONArray("recList").getJSONObject(i).getJSONArray("dL").toJavaList(Integer.class);
+
+                    deletedEvents.forEach((Integer eventNo) -> {
+                        String deleteEventName = this.nodesMap.inverse().get(eventNo);
+                        String attName = deleteEventName.split(": ")[0];
+                        String value = deleteEventName.split(": ")[1];
+                        Attribute att = result.attribute(attName);
+
+                        recordIds.forEach((Integer id) -> {
+                            result.instance(id).setMissing(att);
+                        });
+                    });
+                }
+            }
+
+        });
+
+        for (int i = 0; i < recommendationTrimResult.size(); ++i) {
+            JSONObject trimR = recommendationTrimResult.getJSONObject(i);
+            String attName = trimR.getString("attributeName");
+
+            if (this.allAttSensitivity.get(attName) || !trimList.contains(attName)) continue;
+
+            Attribute oriAttribute = this.originalData.attribute(attName);
+            Attribute resAttr = result.attribute(attName);
+
+            if (trimR.getString("type").equals("numerical")) {
+                List<JSONObject> triLi = trimR.getJSONArray("list").toJavaList(JSONObject.class);
+                double min = attMinMax.get(attName)[0];
+                double max = attMinMax.get(attName)[1];
+                double delta = (max - min) / (triLi.size() - 1);
+
+                for (int j = 0; j < triLi.size(); ++j) {
+                    JSONObject triItem = triLi.get(j);
+                    double rMin = j * delta + min;
+                    double rMax = j == triLi.size() - 1 ? max : (j + 1) * delta + min;
+                    // String value = (j == 0 ? '[' : '(') + df.format(rMin) + "~" + df.format(rMax) + "]";
+                    int trimCnt = triItem.getIntValue("curV") - triItem.getIntValue("triV");
+
+                    List<Integer> targetIndice = new ArrayList<>();
+
+                    for (int idx = 0; idx < originalData.numInstances(); ++idx) {
+                        double oriInsValue = originalData.instance(idx).value(oriAttribute);
+                        if (((j == 0 && oriInsValue == rMin) || oriInsValue > rMin) && oriInsValue <= rMax) {
+                            targetIndice.add(idx);
+                        }
+                    }
+
+                    randomSort(targetIndice);
+                    for (int cnt = 0; cnt < trimCnt && cnt < result.numInstances(); ++cnt) {
+                        result.get(cnt).setMissing(resAttr);
+                    }
+                }
+
+            } else {
+                List<JSONObject> triLi = trimR.getJSONArray("data").toJavaList(JSONObject.class);
+                for (int j = 0; j < triLi.size(); ++j) {
+                    JSONObject triItem = triLi.get(j);
+                    String cate = triItem.getString("category");
+                    int trimCnt = triItem.getIntValue("curV") - triItem.getIntValue("triV");
+                    List<Integer> targetIndice = new ArrayList<>();
+
+                    for (int idx = 0; idx < this.data.numInstances(); ++idx){
+                        String val = this.data.instance(idx).stringValue(resAttr.index());
+                        if (cate.equals(val)) {
+                            targetIndice.add(idx);
+                        }
+                    }
+
+                    randomSort(targetIndice);
+
+                    for (int cnt = 0; cnt < trimCnt && cnt < result.numInstances(); ++cnt) {
+                        result.get(cnt).setMissing(resAttr);
+                    }
+                }
+            }
+
+        }
+
+        return result;
+    }
+
+    private void randomSort(List<Integer> array) {
+        for (int i = 0; i < array.size(); ++i) {
+            int ri =  (int) Math.floor(Math.random() * (array.size()));
+            int curVal = array.get(i);
+            int rVal = array.get(ri);
+
+            array.set(i, rVal);
+            array.set(ri, curVal);
         }
     }
 
