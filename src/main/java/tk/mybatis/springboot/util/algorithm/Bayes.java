@@ -503,7 +503,7 @@ public class Bayes {
         for (String attName : allAttName) {
             if (allAttSensitivity.containsKey(attName) && allAttSensitivity.get(attName)) {
                 Attribute classAtt = data.attribute(attName);
-                data.setClass(classAtt);
+                proD.setClass(classAtt);
                 dataAggregated.setClass(classAtt);
                 try {
                     JSONArray tRes = Model.test(classifier, dataAggregated, proD, modelOptions);
