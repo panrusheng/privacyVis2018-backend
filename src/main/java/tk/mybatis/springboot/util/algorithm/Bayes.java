@@ -409,10 +409,10 @@ public class Bayes {
             if(recommendation.getJSONArray("recList").size() == 0) continue;
             JSONObject option = options.get(i);
             boolean flag = option.getBooleanValue("flag");
+            JSONArray records = recommendation.getJSONArray("records");
             if(flag){ //整组选择
                 int no = option.getIntValue("no");
                 JSONArray deleteEvents = recommendation.getJSONArray("recList").getJSONObject(no).getJSONArray("dL");
-                JSONArray records = recommendation.getJSONArray("records");
                 int numDeleteEvents = records.size();
                 for (Object eventNo : deleteEvents) {
                     String deleteEventName = this.nodesMap.inverse().get(Integer.parseInt(eventNo.toString()));
@@ -441,7 +441,6 @@ public class Bayes {
                     }
                 }
             } else {
-                //Todo:考虑数值型
                 JSONArray selectionList = option.getJSONArray("selectionList");
                 for(int j = 0, size = selectionList.size(); j < size; j++){
                     JSONArray selection = selectionList.getJSONArray(j);
@@ -451,6 +450,27 @@ public class Bayes {
                         String deleteEventName = this.nodesMap.inverse().get(Integer.parseInt(eventNo.toString()));
                         List<Integer> eventCntSeq = eventCntMap.get(deleteEventName);
                         eventCntSeq.add(eventCntSeq.get(eventCntSeq.size() - 1) - numDeleteEvents);//curV
+                        String deleteAttName = deleteEventName.split(": ")[0];
+                        String type = this.attDescription.getJSONObject(deleteAttName).getString("type");
+                        if(type.equals("numerical")){
+                            for(Object _id : selection){
+                                Integer id = Integer.parseInt(_id.toString());
+                                Instance originalInstance = this.originalData.instance(id);
+                                double value = originalInstance.value(this.originalData.attribute(deleteAttName));
+                                double minValue = this.attMinMax.get(deleteAttName)[0];
+                                double split = this.attMinMax.get(deleteAttName)[2];
+                                int groupIndex = 0;
+                                for(; groupIndex < GROUP_NUM; groupIndex++){
+                                    if(value <= minValue + split * groupIndex){
+                                        break;
+                                    }
+                                }
+                                if(groupIndex == 0){
+                                    groupIndex ++;
+                                }
+                                numericEventCntMap.get(deleteAttName)[groupIndex-1]--;
+                            }
+                        }
                     }
                 }
             }
@@ -527,14 +547,6 @@ public class Bayes {
         }
         this.recommendationTrimResult = results;
         return results.toJSONString();
-    }
-
-    public void setTrim(JSONObject attTrim){
-        for(String attName : this.allAttName){
-            if(attTrim.getBooleanValue(attName)){ //need to trim
-                //Todo
-            }
-        }
     }
 
     public JSONArray getTest(String classifier, JSONObject modelOptions, List<String> trimList) {
