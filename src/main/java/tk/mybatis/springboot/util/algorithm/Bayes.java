@@ -1341,7 +1341,7 @@ public class Bayes {
         List<JSONObject> arr = JSON.parseArray(li, JSONObject.class);
 
         bn.getGBN(arr);
-        bn.getTest("KNN", null);
+        // bn.getTest("KNN", null);
     }
 }
 
