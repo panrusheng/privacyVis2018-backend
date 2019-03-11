@@ -444,11 +444,12 @@ public class Bayes {
                     while(e.hasMoreElements()){
                         String category = (String)e.nextElement();
                         String eventName = attName+": "+category;
+                        int maxIndex = eventCntMap.get(eventName).size()-1;
                         JSONObject data = new JSONObject();
                         data.put("category", category);
                         data.put("oriV", eventCntMap.get(eventName).get(0));
-                        data.put("curV", eventCntMap.get(eventName).get(i));
-                        data.put("triV", eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1));
+                        data.put("curV", eventCntMap.get(eventName).get(i > maxIndex ? maxIndex : i));
+                        data.put("triV", eventCntMap.get(eventName).get(maxIndex));
                         dataList.add(data);
                     }
                 }
