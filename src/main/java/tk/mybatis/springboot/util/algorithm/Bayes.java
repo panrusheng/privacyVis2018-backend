@@ -432,6 +432,7 @@ public class Bayes {
                 }
             }
         }
+
         for(String attName : this.allAttName){
             if(!this.allAttSensitivity.get(attName)){
                 JSONObject result = new JSONObject();
@@ -439,17 +440,17 @@ public class Bayes {
                 String type = this.attDescription.getJSONObject(attName).getString("type");
                 result.put("type", type);
                 JSONArray dataList = new JSONArray();
-                for(int i = 0, len_i = reviseLength; i < len_i; i++){
-                    Enumeration e = this.data.attribute(attName).enumerateValues();
-                    while(e.hasMoreElements()){
-                        String category = (String)e.nextElement();
-                        String eventName = attName+": "+category;
-                        int maxIndex = eventCntMap.get(eventName).size()-1;
+                Enumeration e = this.data.attribute(attName).enumerateValues();
+                while(e.hasMoreElements()){
+                    String category = (String)e.nextElement();
+                    String eventName = attName+": "+category;
+                    int maxIndex = eventCntMap.get(eventName).size();
+                    for(int i = 0; i < maxIndex; i++){
                         JSONObject data = new JSONObject();
                         data.put("category", category);
                         data.put("oriV", eventCntMap.get(eventName).get(0));
-                        data.put("curV", eventCntMap.get(eventName).get(i > maxIndex ? maxIndex : i));
-                        data.put("triV", eventCntMap.get(eventName).get(maxIndex));
+                        data.put("curV", eventCntMap.get(eventName).get(i));
+                        data.put("triV", eventCntMap.get(eventName).get(maxIndex-1));
                         dataList.add(data);
                     }
                 }
@@ -705,6 +706,7 @@ public class Bayes {
         }
         return gbn;
     }
+
     /**
      *
      * @param group
