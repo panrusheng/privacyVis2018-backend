@@ -294,13 +294,11 @@ public class Bayes {
         }
         this.recommendationList = new ArrayList<>();
         JSONArray localGBN = getLocalGBN();
-        int index = 0;
         for(Object _group : localGBN){
             JSONObject group = (JSONObject) _group;
             JSONObject recommendation = new JSONObject();
 
             recommendation.put("localGBN", group);
-            recommendation.put("id", index++);
 
             JSONObject data = new JSONObject();
             JSONArray nodes = (JSONArray)group.get("nodes");
@@ -388,6 +386,10 @@ public class Bayes {
                 return risk2 ? 1 : -1;
             }
         });
+        int index = 0;
+        for(JSONObject recommendation : this.recommendationList){
+            recommendation.put("id", index++);
+        }
         return JSONArray.parseArray(JSON.toJSONString(this.recommendationList)).toJSONString();
     }
 
