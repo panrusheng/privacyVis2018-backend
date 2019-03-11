@@ -555,11 +555,10 @@ public class Bayes {
         JSONArray result = new JSONArray();
         for (String attName : allAttName) {
             if (allAttSensitivity.containsKey(attName) && allAttSensitivity.get(attName)) {
-                Attribute classAtt = data.attribute(attName);
-                proD.setClass(classAtt);
-                dataAggregated.setClass(classAtt);
+                proD.setClass(proD.attribute(attName));
+                data.setClass(data.attribute(attName));
                 try {
-                    JSONArray tRes = Model.test(classifier, dataAggregated, proD, modelOptions);
+                    JSONArray tRes = Model.test(classifier, data, proD, modelOptions);
                     result.addAll(tRes);
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -1303,22 +1302,21 @@ public class Bayes {
                 for (int j = 0; j < triLi.size(); ++j) {
                     JSONObject triItem = triLi.get(j);
                     double rMin = j * delta + min;
-                    double rMax = j == triLi.size() - 1 ? max : (j + 1) * delta + min;
+                    double rMax = (j == triLi.size() - 1) ? max : ((j + 1) * delta + min);
                     // String value = (j == 0 ? '[' : '(') + df.format(rMin) + "~" + df.format(rMax) + "]";
-                    int trimCnt = triItem.getIntValue("curV") - triItem.getIntValue("triV");
+                    int trimCnt = triItem.getIntValue("oriV") - triItem.getIntValue("triV");
 
                     List<Integer> targetIndice = new ArrayList<>();
-
                     for (int idx = 0; idx < originalData.numInstances(); ++idx) {
+                        if (result.instance(idx).isMissing(resAttr)) continue;
                         double oriInsValue = originalData.instance(idx).value(oriAttribute);
                         if (((j == 0 && oriInsValue == rMin) || oriInsValue > rMin) && oriInsValue <= rMax) {
                             targetIndice.add(idx);
                         }
                     }
-
                     randomSort(targetIndice);
-                    for (int cnt = 0; cnt < trimCnt && cnt < result.numInstances(); ++cnt) {
-                        result.get(cnt).setMissing(resAttr);
+                    for (int cnt = 0; cnt < trimCnt && cnt < targetIndice.size(); ++cnt) {
+                        result.get(targetIndice.get(cnt)).setMissing(resAttr);
                     }
                 }
 
@@ -1327,10 +1325,11 @@ public class Bayes {
                 for (int j = 0; j < triLi.size(); ++j) {
                     JSONObject triItem = triLi.get(j);
                     String cate = triItem.getString("category");
-                    int trimCnt = triItem.getIntValue("curV") - triItem.getIntValue("triV");
+                    int trimCnt = triItem.getIntValue("oriV") - triItem.getIntValue("triV");
                     List<Integer> targetIndice = new ArrayList<>();
 
                     for (int idx = 0; idx < this.data.numInstances(); ++idx){
+                        if (result.instance(idx).isMissing(resAttr)) continue;
                         String val = this.data.instance(idx).stringValue(resAttr.index());
                         if (cate.equals(val)) {
                             targetIndice.add(idx);
@@ -1338,9 +1337,8 @@ public class Bayes {
                     }
 
                     randomSort(targetIndice);
-
-                    for (int cnt = 0; cnt < trimCnt && cnt < result.numInstances(); ++cnt) {
-                        result.get(cnt).setMissing(resAttr);
+                    for (int cnt = 0; cnt < trimCnt && cnt < targetIndice.size(); ++cnt) {
+                        result.get(targetIndice.get(cnt)).setMissing(resAttr);
                     }
                 }
             }

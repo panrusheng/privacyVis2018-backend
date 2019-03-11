@@ -233,7 +233,7 @@ public class Model {
             tp = tn = fp = fn = 0;
 
             for (Instance instance : proD) {
-                String predictVal = classAtt.value((int) modelOriD.classifyInstance(instance));
+                String predictVal = classAtt.value((int) modelProD.classifyInstance(instance));
                 String realVal = instance.stringValue(classAtt);
 
                 if (realVal.equals(value)) {
