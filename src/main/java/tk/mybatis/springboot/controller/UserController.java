@@ -119,7 +119,7 @@ public class UserController {
         String model = request.getParameter("method");
 
         JSONObject options = JSON.parseObject(request.getParameter("options"));
-
-        return bn.getTest(model, options).toJSONString();
+        List<String> trimList = JSONObject.parseArray(request.getParameter("trimList")).toJavaList(String.class);
+        return bn.getTest(model, options, trimList).toJSONString();
     }
 }
