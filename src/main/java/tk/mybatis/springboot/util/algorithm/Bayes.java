@@ -439,40 +439,43 @@ public class Bayes {
                 result.put("attributeName", attName);
                 String type = this.attDescription.getJSONObject(attName).getString("type");
                 result.put("type", type);
-                JSONArray dataList = new JSONArray();
-                List<JSONObject> _dataList = new ArrayList<>();
-                Enumeration e = this.data.attribute(attName).enumerateValues();
-                double minRate = Double.POSITIVE_INFINITY;
-                while(e.hasMoreElements()){
-                    String category = (String)e.nextElement();
-                    String eventName = attName+": "+category;
-                    JSONObject data = new JSONObject();
-                    int oriV = eventCntMap.get(eventName).get(0);
-                    int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
-                    data.put("category", category);
-                    data.put("oriV", oriV);
-                    data.put("curV", curV);
-                    double rate = (double)curV / oriV;
-                    if(rate < minRate){
-                        minRate = rate;
-                    }
-                    _dataList.add(data);
-                }
-                for(JSONObject _data : _dataList){
-                    JSONObject data = new JSONObject();
-                    data.put("category", _data.getString("category"));
-                    data.put("oriV", _data.getIntValue("oriV"));
-                    data.put("curV", _data.getIntValue("curV"));
-                    data.put("triV", (int)(_data.getIntValue("oriV") * minRate));
-                    dataList.add(data);
-                }
                 if(type.equals("categorical")){
+                    JSONArray dataList = new JSONArray();
+                    List<JSONObject> _dataList = new ArrayList<>();
+                    Enumeration e = this.data.attribute(attName).enumerateValues();
+                    double minRate = Double.POSITIVE_INFINITY;
+                    while(e.hasMoreElements()){
+                        String category = (String)e.nextElement();
+                        String eventName = attName+": "+category;
+                        JSONObject data = new JSONObject();
+                        int oriV = eventCntMap.get(eventName).get(0);
+                        int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
+                        data.put("category", category);
+                        data.put("oriV", oriV);
+                        data.put("curV", curV);
+                        double rate = (double)curV / oriV;
+                        if(rate < minRate){
+                            minRate = rate;
+                        }
+                        _dataList.add(data);
+                    }
+                    for(JSONObject _data : _dataList){
+                        JSONObject data = new JSONObject();
+                        data.put("category", _data.getString("category"));
+                        data.put("oriV", _data.getIntValue("oriV"));
+                        data.put("curV", _data.getIntValue("curV"));
+                        data.put("triV", (int)(_data.getIntValue("oriV") * minRate));
+                        dataList.add(data);
+                    }
                     result.put("data", dataList);
                 } else{ //numerical
                     List<Double> range = new ArrayList<>();
                     range.add(this.attMinMax.get(attName)[0]);
                     range.add(this.attMinMax.get(attName)[1]);
                     result.put("range", range);
+                    JSONArray dataList = new JSONArray();
+                    List<JSONObject> _dataList = new ArrayList<>();
+                    //Todo
                     result.put("list", dataList);
                 }
                 results.add(result);
@@ -725,8 +728,9 @@ public class Bayes {
      * @return
      */
     private Tuple<List<JSONObject>, JSONObject> getRec(JSONObject group) {
-        List<JSONObject> recList = new LinkedList<>();
         int numInstances = data.numInstances();
+        List<JSONObject> recList = new LinkedList<>();
+        JSONObject riskList = new JSONObject();
         JSONArray nodes = group.getJSONArray("nodes");
         List<String> normalEvents = new ArrayList<>();
         List<String> sensitiveEvents = new ArrayList<>();
@@ -739,7 +743,6 @@ public class Bayes {
             }
         }
         double[] risk = getRisk(normalEvents, sensitiveEvents);
-        JSONObject riskList = new JSONObject();
         for(int i = 0, n = risk.length; i < n; i++){
             riskList.put(sensitiveEvents.get(i), risk[i]);
         }
@@ -759,6 +762,7 @@ public class Bayes {
                     subEvents.removeAll(deleteEvents);
                     Boolean protects = isProtected(subEvents, sensitiveEvents);
                     if (protects) {
+                        deletedEventsSegment.add(toDeleteDataSegment);
                         JSONObject scheme = new JSONObject();
                         double utilityLoss = 0.0;
                         for(String event : deleteEvents){
@@ -766,27 +770,38 @@ public class Bayes {
                         }
                         scheme.put("dL", deleteEvents.stream().map(this.nodesMap::get).collect(Collectors.toList()));
                         scheme.put("uL", utilityLoss);
-                        int numRecList = recList.size();
-                        if(numRecList > 1){
-                            int j = 0;
-                            for(; j < numRecList; j++){
-                                if(recList.get(j).getDoubleValue("uL") > utilityLoss){
-                                    break;
-                                }
-                            }
-                            if(j == numRecList) {
-                                recList.add(scheme);
-                            } else{
-                                recList.add(j, scheme);
-                            }
-                        } else{
-                            recList.add(scheme);
-                        }
-                        deletedEventsSegment.add(toDeleteDataSegment);
+//                        int numRecList = recList.size();
+//                        if(numRecList > 1){
+//                            int j = 0;
+//                            for(; j < numRecList; j++){
+//                                if(recList.get(j).getDoubleValue("uL") > utilityLoss){
+//                                    break;
+//                                }
+//                            }
+//                            if(j == numRecList) {
+//                                recList.add(scheme);
+//                            } else{
+//                                recList.add(j, scheme);
+//                            }
+//                        } else{
+//                            recList.add(scheme);
+//                        }
+                        recList.add(scheme);
                     }
                 }
             }
         }
+        Collections.sort(recList, (o1, o2) -> {
+            double v1 = o1.getDoubleValue("uL");
+            double v2 = o2.getDoubleValue("uL");
+            if(v2 > v1){
+                return -1;
+            } else if(v2 < v1){
+                return 1;
+            } else{
+                return 0;
+            }
+        });
         return new Tuple<>(recList, riskList);
     }
 
