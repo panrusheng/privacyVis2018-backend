@@ -294,6 +294,7 @@ public class Bayes {
         for(JSONObject utility: utilityList){
             this.utilityMap.put(utility.getString("attName"), utility.getDoubleValue("utility"));
         }
+
         this.recommendationList = new ArrayList<>();
         JSONArray localGBN = getLocalGBN();
         for(Object _group : localGBN){
@@ -313,41 +314,30 @@ public class Bayes {
             recommendation.put("data",data);
 
             JSONArray records = new JSONArray();
-            for(int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++){
-                Instance instance = originalData.instance(i);
+            for(int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++){
+                Instance instance = this.data.instance(i);
+                Instance originalInstance = this.originalData.instance(i);
                 JSONArray recordData = new JSONArray();
                 int j = 0, numNodes = nodes.size();
                 for(; j < numNodes; j++){
-                    JSONObject recordDatum  = new JSONObject();
                     String[] attEvent = ((JSONObject) nodes.get(j)).getString("id").split(": ");
                     String att = attEvent[0];
-                    if(this.allAttSensitivity.get(att)) continue;
                     String event = attEvent[1];
                     String type = this.attDescription.getJSONObject(att).getString("type");
-                    if(type.equals("categorical")){
-                        if(instance.stringValue(this.originalData.attribute(att)).equals(event)){
+                    if(instance.stringValue(this.data.attribute(att)).equals(event)){
+                        if(!this.allAttSensitivity.get(att)) {
+                            JSONObject recordDatum  = new JSONObject();
                             recordDatum.put("attName", att);
-                            recordDatum.put("value", event);
+                            if(type.equals("categorical")) {
+                                recordDatum.put("value", event);
+                            } else{
+                                recordDatum.put("value", originalInstance.value(this.originalData.attribute(att)));
+                            }
                             recordDatum.put("utility", this.utilityMap.get(att));
                             recordData.add(recordDatum);
-                        }else{
-                            break;
                         }
-                    } else{
-                        double numerivalValue = instance.value(this.originalData.attribute(att));
-                        String[] min_max = event.split("~");
-                        String minString = min_max[0].replaceAll("[\\(\\[]", "");
-                        String maxString = min_max[1].replaceAll("[\\)\\]]", "");
-                        double minValue = minString.equals("-inf")? Double.NEGATIVE_INFINITY: Double.valueOf(minString);
-                        double maxValue = maxString.equals("inf")? Double.POSITIVE_INFINITY: Double.valueOf(maxString);
-                        if(numerivalValue > minValue && numerivalValue <= maxValue){
-                            recordDatum.put("attName", att);
-                            recordDatum.put("value", numerivalValue);
-                            recordDatum.put("utility", this.utilityMap.get(att));
-                            recordData.add(recordDatum);
-                        }else{
-                            break;
-                        }
+                    }else{
+                        break;
                     }
                 }
                 if(j == nodes.size()){
@@ -398,11 +388,21 @@ public class Bayes {
     public String getResult(List<JSONObject> options){
         this.selectionOption = options;
         JSONArray results = new JSONArray();
-        Map<String, List<Integer>> eventCntMap = new HashMap<>();
+        Map<String, List<Integer>> eventCntMap = new HashMap<>();//contains current numeric data
+        Map<String, int[]> numericEventCntMap = new HashMap<>();//original numeric data
         for(String eventName : this.priorMap.keySet()){
             List<Integer> eventCntSeq = new ArrayList<>();
             eventCntSeq.add(this.priorMap.get(eventName));//oriV
             eventCntMap.put(eventName, eventCntSeq);
+            String attName = eventName.split(": ")[0];
+            String type = this.attDescription.getJSONObject(attName).getString("type");
+            if(type.equals("numerical") && !numericEventCntMap.containsKey(attName)){
+                int[] groupList = new int[GROUP_NUM];
+                for(int i = 0; i < GROUP_NUM; i++){
+                    groupList[i] = this.attGroupList.get(attName)[i];
+                }
+                numericEventCntMap.put(attName, groupList);
+            }
         }
         for(int i = 0, len_i = options.size(); i < len_i; i++){
             JSONObject recommendation = this.recommendationList.get(i);
@@ -412,13 +412,36 @@ public class Bayes {
             if(flag){ //整组选择
                 int no = option.getIntValue("no");
                 JSONArray deleteEvents = recommendation.getJSONArray("recList").getJSONObject(no).getJSONArray("dL");
-                int numDeleteEvents = recommendation.getJSONObject("localGBN").getIntValue("num");
+                JSONArray records = recommendation.getJSONArray("records");
+                int numDeleteEvents = records.size();
                 for (Object eventNo : deleteEvents) {
                     String deleteEventName = this.nodesMap.inverse().get(Integer.parseInt(eventNo.toString()));
                     List<Integer> eventCntSeq = eventCntMap.get(deleteEventName);
                     eventCntSeq.add(eventCntSeq.get(eventCntSeq.size() - 1) - numDeleteEvents);//curV
+                    String deleteAttName = deleteEventName.split(": ")[0];
+                    String type = this.attDescription.getJSONObject(deleteAttName).getString("type");
+                    if(type.equals("numerical")){
+                        for(Object _record : records){
+                            JSONObject record = JSONObject.parseObject(_record.toString());
+                            Instance originalInstance = this.originalData.instance(record.getIntValue("id"));
+                            double value = originalInstance.value(this.originalData.attribute(deleteAttName));
+                            double minValue = this.attMinMax.get(deleteAttName)[0];
+                            double split = this.attMinMax.get(deleteAttName)[2];
+                            int groupIndex = 0;
+                            for(; groupIndex < GROUP_NUM; groupIndex++){
+                                if(value <= minValue + split * groupIndex){
+                                    break;
+                                }
+                            }
+                            if(groupIndex == 0){
+                                groupIndex ++;
+                            }
+                            numericEventCntMap.get(deleteAttName)[groupIndex-1]--;
+                        }
+                    }
                 }
             } else {
+                //Todo:考虑数值型
                 JSONArray selectionList = option.getJSONArray("selectionList");
                 for(int j = 0, size = selectionList.size(); j < size; j++){
                     JSONArray selection = selectionList.getJSONArray(j);
@@ -433,40 +456,6 @@ public class Bayes {
             }
         }
 
-        Map<String, int[]> curAttGroupList = new HashMap<>();
-        for(String attEvent : eventCntMap.keySet()){
-            String attName = attEvent.split(": ")[0];
-            String type = this.attDescription.getJSONObject(attName).getString("type");
-            if(type.equals("numerical")){
-                String eventName = attEvent.split(": ")[1];
-                int oriV = eventCntMap.get(attEvent).get(0);
-                int curV = eventCntMap.get(attEvent).get(eventCntMap.get(attEvent).size()-1);
-                int numOfDel = oriV - curV;
-                double start = Double.parseDouble(eventName.split("~")[0].substring(1));
-                double end = Double.parseDouble(eventName.split("~")[1].substring(0, 3));
-                int index_start = (int)((start - this.attMinMax.get(attName)[0]) / this.attMinMax.get(attName)[2]);
-                int index_end = (int)((end - this.attMinMax.get(attName)[0]) / this.attMinMax.get(attName)[2]);
-                int[] groupList = new int[GROUP_NUM];
-                Arrays.fill(groupList,0);
-                for(int i = index_start; i < index_end; i++){
-                    groupList[i] = this.attGroupList.get(attName)[i];
-                }
-                while(numOfDel > 0){
-                    int indexDel = (int)(Math.random() * --oriV) + 1;
-                    for(int i = index_start; i < index_end; i++){
-                        if(indexDel > groupList[i]){
-                            indexDel -= groupList[i];
-                        }
-                        else{
-                            groupList[i]--;
-                            numOfDel--;
-                            break;
-                        }
-                    }
-                }
-                curAttGroupList.put(attEvent, groupList);
-            }
-        }
         for(String attName : this.allAttName){
             if(!this.allAttSensitivity.get(attName)){
                 JSONObject result = new JSONObject();
@@ -508,47 +497,27 @@ public class Bayes {
                     range.add(this.attMinMax.get(attName)[1]);
                     result.put("range", range);
                     JSONArray dataList = new JSONArray();
-                    List<JSONObject> _dataList = new ArrayList<>();
                     double minRate = Double.POSITIVE_INFINITY;
-                    double minValue = this.attMinMax.get(attName)[0];
-                    double maxValue = this.attMinMax.get(attName)[1];
-                    double split = this.attMinMax.get(attName)[2];
-                    List<Double> splitPoint = this.attSplitPoint.get(attName);
                     int[] oriGroupList = this.attGroupList.get(attName);
-                    for(int i = 0; i < GROUP_NUM; i++){
-                        JSONObject data = new JSONObject();
-                        double curValue = minValue + split*i;
-                        String category = "";
-                        int j = 0, len_j = splitPoint.size();
-                        for(; j < len_j; j++){
-                            if(curValue < splitPoint.get(j)){
-                                break;
-                            }
-                        }
-                        if(j==0){
-                            category = "[" + df.format(minValue) + "~" + df.format(splitPoint.get(0)) + "]";
-                        } else if(j == len_j){
-                            category = "(" + df.format(splitPoint.get(len_j-1)) + "~" + df.format(maxValue) + "]";
-                        } else{
-                            category = "(" + df.format(splitPoint.get(j-1)) + "~" + df.format(splitPoint.get(j)) + "]";
-                        }
+                    int[] curGroupList = numericEventCntMap.get(attName);
+                    Enumeration e = this.data.attribute(attName).enumerateValues();
+                    while(e.hasMoreElements()){
+                        String category = (String)e.nextElement();
                         String eventName = attName+": "+category;
-                        int[] curGroupList = curAttGroupList.get(eventName);
-                        int oriV = oriGroupList[i];
-                        int curV = curGroupList[i];
-                        data.put("oriV", oriV);
-                        data.put("curV", curV);
+                        int oriV = eventCntMap.get(eventName).get(0);
+                        int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
                         double rate = (double)curV / oriV;
                         if(rate < minRate){
                             minRate = rate;
                         }
-                        _dataList.add(data);
                     }
-                    for(JSONObject _data : _dataList){
+                    for(int i = 0; i < GROUP_NUM; i++){
                         JSONObject data = new JSONObject();
-                        data.put("oriV", _data.getIntValue("oriV"));
-                        data.put("curV", _data.getIntValue("curV"));
-                        data.put("triV", (int)(_data.getIntValue("oriV") * minRate));
+                        int oriV = oriGroupList[i];
+                        int curV = curGroupList[i];
+                        data.put("oriV", oriV);
+                        data.put("curV", curV);
+                        data.put("triV", (int)(oriV * minRate));
                         dataList.add(data);
                     }
                     result.put("list", dataList);
@@ -588,7 +557,6 @@ public class Bayes {
 
         return result;
     }
-
 
     private void initOriginalData(){
         try {
