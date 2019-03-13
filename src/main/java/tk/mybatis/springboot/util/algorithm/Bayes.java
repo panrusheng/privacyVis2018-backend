@@ -1426,7 +1426,7 @@ public class Bayes {
                     double correlationValue = (double) tuple.getT1().get(index).get(eventName) / tuple.getT0();
                     JSONObject probabilities = new JSONObject();
                     probabilities.put("eventLists", normalEventSet);
-                    probabilities.put("correlations", correlationValue);
+                    probabilities.put("cor", correlationValue);
                     probabilityList.add(probabilities);
                 });
                 probabilityList.sort((o1, o2) -> {
