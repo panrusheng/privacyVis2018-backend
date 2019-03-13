@@ -1441,7 +1441,7 @@ public class Bayes {
                     }
                 });
                 correlation.put("data", probabilityList);
-                correlation.put("pro", this.priorMap.get(this.nodesMap.get(sensitiveEventName)));
+                correlation.put("pro", (double) this.priorMap.get(sensitiveEventName) / numInstances);
                 correlations.put(sensitiveEventName, correlation);
             }
         }
