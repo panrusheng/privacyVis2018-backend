@@ -1430,8 +1430,8 @@ public class Bayes {
                     probabilityList.add(probabilities);
                 });
                 probabilityList.sort((o1, o2) -> {
-                    double v1 = o1.getDoubleValue("correlations");
-                    double v2 = o2.getDoubleValue("correlations");
+                    double v1 = o1.getDoubleValue("cor");
+                    double v2 = o2.getDoubleValue("cor");
                     if(v1 > v2){
                         return -1;
                     } else if(v1 < v2){
