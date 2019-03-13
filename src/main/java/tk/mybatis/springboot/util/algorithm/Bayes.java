@@ -13,10 +13,8 @@ import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
 
+import java.io.*;
 import java.text.DecimalFormat;
-import java.io.File;
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -152,8 +150,12 @@ public class Bayes {
     }
 
     public Bayes(){
-        initOriginalData();
-        initAttDescription();
+        this("user");
+    }
+
+    public Bayes(String datasetName){
+        initOriginalData(datasetName);
+        initAttDescription(datasetName);
     }
 
     public JSONObject getAttDescription(){
@@ -198,14 +200,14 @@ public class Bayes {
                     newAttributeValues.add((String)e.nextElement());
                 }
 
-                for (JSONObject g : groups) {
+                groups.forEach(g->{
                     JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
                     for(Object eventName : categories){
                         newAttributeValues.remove(eventName);
                     }
                     newAttributeValues.add(newEventName);
-                }
+                });
 
                 int curAttIndex = numAttributes;
                 Attribute newCategoryAttribute = new Attribute("_"+attName, newAttributeValues);
@@ -216,8 +218,8 @@ public class Bayes {
                     this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
                 }
 
-                for (JSONObject g : groups) {
-                    JSONArray categories = g.getJSONArray("categories");
+                groups.forEach(g->{
+                        JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
                     for (int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                         Instance instance = this.data.instance(i);
@@ -226,7 +228,7 @@ public class Bayes {
                             instance.setValue(curAttIndex, newEventName);
                         }
                     }
-                }
+                });
             } else{ //numeric
                 JSONArray jsonNewSplitPoint = attInfo.getJSONArray("splitPoints");
                 List<Double> newSplitPoint = new ArrayList<>();
@@ -311,7 +313,7 @@ public class Bayes {
             JSONObject data = new JSONObject();
             JSONArray nodes = (JSONArray)group.get("nodes");
             for(Object _node : nodes){
-                String[] nodeID = ((JSONObject) _node).getString("id").split(": ");
+                String[] nodeID = JSON.parseObject(_node.toString()).getString("id").split(": ");
                 if(!this.allAttSensitivity.get(nodeID[0])){
                     data.put(nodeID[0], nodeID[1]);
                 }
@@ -574,32 +576,89 @@ public class Bayes {
         return result;
     }
 
-    private void initOriginalData(){
+    private void initOriginalData(String datasetName){
         try {
-            BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\user.arff"));
+            BufferedReader reader = new BufferedReader(new FileReader(root_path + "tk\\mybatis\\springboot\\data\\" + datasetName + ".arff"));
             this.originalData = new Instances(reader);
         }catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void initAttDescription(){
+    private void initAttDescription(String datasetName){
         this.attDescription = new JSONObject();
-        this.attDescription.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
-        this.attDescription.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
-        this.attDescription.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
-        this.attDescription.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
-        this.attDescription.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
-        this.attDescription.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
-        this.attDescription.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
-        this.attDescription.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
-        this.attDescription.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
-        this.attDescription.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
-        this.attDescription.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
-        this.attDescription.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
-        this.attDescription.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
-        this.attDescription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
-        this.attDescription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+        switch (datasetName){
+            case "user":{
+                this.attDescription.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
+                this.attDescription.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
+                this.attDescription.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));
+                this.attDescription.put("res" ,  JSON.parseObject("{\"description\" : \"Residence\", \"type\": \"categorical\"}"));
+                this.attDescription.put("sch" ,  JSON.parseObject("{\"description\" : \"School\", \"type\": \"categorical\"}"));
+                this.attDescription.put("fue" ,  JSON.parseObject("{\"description\" : \"Whether the father is unemployed?\", \"type\": \"categorical\"}"));
+                this.attDescription.put("gcs" ,  JSON.parseObject("{\"description\" : \"Whether he or she has five or more GCSEs at grades AC?\", \"type\": \"categorical\"}"));
+                this.attDescription.put("fmp" ,  JSON.parseObject("{\"description\" : \"Whether the father is at least the management?\", \"type\": \"categorical\"}"));
+                this.attDescription.put("lvb" ,  JSON.parseObject("{\"description\" : \"Whether live with parents?\", \"type\": \"categorical\"}"));
+                this.attDescription.put("tra" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep training within six years?\", \"type\": \"numerical\"}"));
+                this.attDescription.put("emp" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep employment within six years?\", \"type\": \"numerical\"}"));
+                this.attDescription.put("jol" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep joblessness within six years?\", \"type\": \"numerical\"}"));
+                this.attDescription.put("fe" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a further education within six years?\", \"type\": \"numerical\"}"));
+                this.attDescription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
+                this.attDescription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
+            } break;
+            case "home": {
+                this.attDescription.put("claim3years" ,  JSON.parseObject("{\"description\" : \"Whether there was loss in last 3 years\", \"type\": \"categorical\"}"));
+                this.attDescription.put("empStatus" ,  JSON.parseObject("{\"description\" : \"Client's professional status\", \"type\": \"categorical\"}"));
+                this.attDescription.put("busUse" ,  JSON.parseObject("{\"description\" : \"Commercial use indicator\", \"type\": \"categorical\"}"));
+                this.attDescription.put("adBuild" ,  JSON.parseObject("{\"description\" : \"Building coverage - Self damage\", \"type\": \"categorical\"}"));
+                this.attDescription.put("riskRate" ,  JSON.parseObject("{\"description\" : \"Geographical Classification of Risk - Building\", \"type\": \"numerical\"}"));
+                this.attDescription.put("insurSum" ,  JSON.parseObject("{\"description\" : \"Assured Sum - Building\", \"type\": \"numerical\"}"));
+                this.attDescription.put("grantYear" ,  JSON.parseObject("{\"description\" : \"Bonus Malus - Building\", \"type\": \"numerical\"}"));
+                this.attDescription.put("specInsur" ,  JSON.parseObject("{\"description\" : \"Assured Sum - Valuable Personal Property\", \"type\": \"numerical\"}"));
+                this.attDescription.put("specPrem" ,  JSON.parseObject("{\"description\" : \"Premium - Personal valuable items\", \"type\": \"numerical\"}"));
+                this.attDescription.put("birthYear" ,  JSON.parseObject("{\"description\" : \"Year of birth of the client\", \"type\": \"numerical\"}"));
+                this.attDescription.put("marStatus" ,  JSON.parseObject("{\"description\" : \"Marital status of the client\", \"type\": \"categorical\"}"));
+                this.attDescription.put("sex" ,  JSON.parseObject("{\"description\" : \"Customer sex\", \"type\": \"categorical\"}"));
+                this.attDescription.put("alarm" ,  JSON.parseObject("{\"description\" : \"Appropriate alarm\", \"type\": \"categorical\"}"));
+                this.attDescription.put("lock" ,  JSON.parseObject("{\"description\" : \"Appropriate lock\", \"type\": \"categorical\"}"));
+                this.attDescription.put("bedroom" ,  JSON.parseObject("{\"description\" : \"Number of bedrooms\", \"type\": \"numerical\"}"));
+                this.attDescription.put("roofCon" ,  JSON.parseObject("{\"description\" : \"Code of the type of construction of the roof\", \"type\": \"categorical\"}"));
+                this.attDescription.put("wallCon" ,  JSON.parseObject("{\"description\" : \"Code of the type of construction of the wall\", \"type\": \"categorical\"}"));
+                this.attDescription.put("flood" ,  JSON.parseObject("{\"description\" : \"House susceptible to floods\", \"type\": \"categorical\"}"));
+                this.attDescription.put("unocc" ,  JSON.parseObject("{\"description\" : \"Number of days unoccupied\", \"type\": \"numerical\"}"));
+                this.attDescription.put("neigh" ,  JSON.parseObject("{\"description\" : \"Vigils of proximity present\", \"type\": \"categorical\"}"));
+                this.attDescription.put("occStatus" ,  JSON.parseObject("{\"description\" : \"Occupancy status\", \"type\": \"categorical\"}"));
+                this.attDescription.put("subside" ,  JSON.parseObject("{\"description\" : \"Subsidence indicator (relative downwards motion of the surface )\", \"type\": \"categorical\"}"));
+                this.attDescription.put("safeInstall" ,  JSON.parseObject("{\"description\" : \"Safe installs\", \"type\": \"categorical\"}"));
+                this.attDescription.put("yearBuild" ,  JSON.parseObject("{\"description\" : \"Year of construction\", \"type\": \"numerical\"}"));
+                this.attDescription.put("payment" ,  JSON.parseObject("{\"description\" : \"Method of payment\", \"type\": \"categorical\"}"));
+                this.attDescription.put("polStatus" ,  JSON.parseObject("{\"description\" : \"Police status\", \"type\": \"categorical\"}"));
+                this.attDescription.put("lastPrem" ,  JSON.parseObject("{\"description\" : \"Premium - Total for the previous year\", \"type\": \"numerical\"}"));
+                this.attDescription.put("garBefore" ,  JSON.parseObject("{\"description\" : \"Option \"Gardens\" included before 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("garPost" ,  JSON.parseObject("{\"description\" : \"Option \"Gardens\" included after 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("keyBefore" ,  JSON.parseObject("{\"description\" : \"Option \"Replacement of keys\" included before 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("keyAfter" ,  JSON.parseObject("{\"description\" : \"Option \"Replacement of keys\" included after 1st renewal\", \"type\": \"categorical\"}"));
+            } break;
+            case "student": {
+                this.attDescription.put("gender" ,  JSON.parseObject("{\"description\" : \"Student's gender\", \"type\": \"categorical\"}"));
+                this.attDescription.put("nation" ,  JSON.parseObject("{\"description\" : \"Student's nationality\", \"type\": \"categorical\"}"));
+                this.attDescription.put("placeofBirth" ,  JSON.parseObject("{\"description\" : \"Student's Place of birth\", \"type\": \"categorical\"}"));
+                this.attDescription.put("stage" ,  JSON.parseObject("{\"description\" : \"Educational level student belongs\", \"type\": \"categorical\"}"));
+                this.attDescription.put("grade" ,  JSON.parseObject("{\"description\" : \"Grade student belongs\", \"type\": \"numerical\"}"));
+                this.attDescription.put("section" ,  JSON.parseObject("{\"description\" : \"Classroom student belongs\", \"type\": \"categorical\"}"));
+                this.attDescription.put("topic" ,  JSON.parseObject("{\"description\" : \"Course topic\", \"type\": \"categorical\"}"));
+                this.attDescription.put("semester" ,  JSON.parseObject("{\"description\" : \"School year semester\", \"type\": \"categorical\"}"));
+                this.attDescription.put("relation" ,  JSON.parseObject("{\"description\" : \"Parent responsible for student\", \"type\": \"categorical\"}"));
+                this.attDescription.put("raiseHand" ,  JSON.parseObject("{\"description\" : \"How many times the student raises his/her hand on classroom\", \"type\": \"numerical\"}"));
+                this.attDescription.put("visitRes" ,  JSON.parseObject("{\"description\" : \"How many times the student visits a course content\", \"type\": \"numerical\"}"));
+                this.attDescription.put("announce" ,  JSON.parseObject("{\"description\" : \"How many times the student checks the new announcements\", \"type\": \"numerical\"}"));
+                this.attDescription.put("discuss" ,  JSON.parseObject("{\"description\" : \"How many times the student participate on discussion groups\", \"type\": \"numerical\"}"));
+                this.attDescription.put("satisfy" ,  JSON.parseObject("{\"description\" : \"The degree of parent satisfaction from school\", \"type\": \"categorical\"}"));
+                this.attDescription.put("absence" ,  JSON.parseObject("{\"description\" : \"The number of absence days for each student\", \"type\": \"categorical\"}"));
+                this.attDescription.put("anwser" ,  JSON.parseObject("{\"description\" : \"If parents answer the survey\", \"type\": \"categorical\"}"));
+                this.attDescription.put("class" ,  JSON.parseObject("{\"description\" : \"The classification of students decided by numerical interva\", \"type\": \"categorical\"}"));
+            }break;
+            default: break;
+        }
     }
 
     /**
@@ -886,28 +945,27 @@ public class Bayes {
             }
         }
 
-        for(Map.Entry<JSONArray, Integer> gbn: localGBNMap.entrySet()){
+        localGBNMap.forEach((JSONArray links, Integer num)->{
             JSONObject group = new JSONObject();
-            JSONArray links = gbn.getKey();
             Set<Integer> nodesSet = new HashSet<>();
             JSONArray nodes = new JSONArray();
-            for(Object _link: links){
-                JSONObject link = (JSONObject) _link;
+            links.forEach((Object _link)->{
+                JSONObject link = JSON.parseObject(_link.toString());
                 nodesSet.add((Integer) link.get("source"));
                 nodesSet.add((Integer) link.get("target"));
-            }
-            for(Integer _node : nodesSet){
+            });
+            nodesSet.forEach(_node->{
                 JSONObject node = new JSONObject();
                 node.put("eventNo",_node);
                 node.put("id", this.nodesMap.inverse().get(_node));
                 node.put("value", 1);
                 nodes.add(node);
-            }
-            group.put("num", gbn.getValue());
+            });
+            group.put("num", num);
             group.put("links", links);
             group.put("nodes", nodes);
             localGBN.add(group);
-        }
+        });
         localGBN.sort( (o1, o2) -> o2.getIntValue("num") - o1.getIntValue("num"));
         JSONArray jsonLocalGBN = JSONArray.parseArray(JSON.toJSONString(localGBN));
         return jsonLocalGBN;
@@ -1095,43 +1153,39 @@ public class Bayes {
             }
         }
 
-        for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
+        this.attMinMax.forEach((String attName, double[] value)->{
             for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
                 Instance instance = originalData.instance(i);
-                double attEventValue = instance.value(this.originalData.attribute(attValue.getKey()));
-                if (attEventValue < attValue.getValue()[0]) {
-                    attValue.getValue()[0] = attEventValue;
+                double attEventValue = instance.value(this.originalData.attribute(attName));
+                if (attEventValue < value[0]) {
+                    value[0] = attEventValue;
                 }
-                if (attEventValue > attValue.getValue()[1]) {
-                    attValue.getValue()[1] = attEventValue;
+                if (attEventValue > value[1]) {
+                    value[1] = attEventValue;
                 }
             }
-        }
+        });
 
         this.data = new Instances(originalData);
-        for(Map.Entry<String, double[]> attValue : this.attMinMax.entrySet()) {
-            attValue.getValue()[2] = (attValue.getValue()[1] - attValue.getValue()[0]) / GROUP_NUM;
-            String attName = attValue.getKey();
+        this.attMinMax.forEach((String attName, double[] value)->{
+            value[2] = (value[1] - value[0]) / GROUP_NUM;
             Attribute numericAttribute = this.originalData.attribute(attName);
-            double minValue = attValue.getValue()[0];
-            double split = attValue.getValue()[2];
+            double minValue = value[0];
+            double split = value[2];
             for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
                 Instance instance = data.instance(i);
-                double value = instance.value(numericAttribute);
-                int index = (int) ((value - minValue) / split);
+                int index = (int) ((instance.value(numericAttribute) - minValue) / split);
                 if(index == GROUP_NUM) index--;
                 this.attGroupList.get(attName)[index]++;
             }
-        }
+        });
 
-        int numAttributes = this.data.numAttributes();
-        for(Map.Entry<String, int[]> attValue : this.attGroupList.entrySet()) {
-            String attName = attValue.getKey();
+        int[] numAttributes = {this.data.numAttributes()};
+        this.attGroupList.forEach((String attName, int[] groupList)->{
             double minValue = this.attMinMax.get(attName)[0];
             double maxValue = this.attMinMax.get(attName)[1];
             double split = this.attMinMax.get(attName)[2];
             List<Double> splitPoint = this.attSplitPoint.get(attName);
-            int[] groupList = attValue.getValue();
             int len = groupList.length;
             int maxNo = 0;
             int maxG = groupList[maxNo];
@@ -1180,7 +1234,7 @@ public class Bayes {
                 while(it.hasNext()){
                     double value = it.next();
                     cnt+=eventCount.get(value);
-                    if(cnt > numAttributes / 2){
+                    if(cnt > numAttributes[0] / 2){
                         splitPoint.add(value);
                         break;
                     }
@@ -1196,7 +1250,7 @@ public class Bayes {
             }
             attributeValues.add("(" + df.format(minValue + splitPoint.get(splitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
             Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
-            this.data.insertAttributeAt(categoryAttribute, numAttributes++);
+            this.data.insertAttributeAt(categoryAttribute, numAttributes[0]++);
             for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                 Instance instance = this.data.instance(i);
                 double value = instance.value(numericAttribute);
@@ -1206,15 +1260,15 @@ public class Bayes {
                         break;
                     }
                 }
-                instance.setValue(numAttributes-1, index);
+                instance.setValue(numAttributes[0]-1, index);
             }
-        }
+        });
 
-        for(int i = 0; i < numAttributes; i++){
+        for(int i = 0; i < numAttributes[0]; i++){
             Attribute attribute = this.data.attribute(i);
             if(attribute.isNumeric()){
                 this.data.deleteAttributeAt(i);
-                i--;numAttributes--;
+                i--;numAttributes[0]--;
             } else if(attribute.name().startsWith("_")){
                 this.data.renameAttribute(i, attribute.name().substring(1));
             }
@@ -1380,7 +1434,7 @@ public class Bayes {
         int numSensitiveAtts = sensitiveAtts.size();
         int numAllNormalAtts = allNormalAtts.size();
         for(int len = 1; len <= numAllNormalAtts; len++){
-            for(int start = 0; start < numAllNormalAtts - len; start++) {
+            for(int start = 0; start <= numAllNormalAtts - len; start++) {
                 List<String> normalAtts = new ArrayList<>();
                 for (int i = start; i < start + len; i++) {
                     normalAtts.add(allNormalAtts.get(i));
@@ -1388,9 +1442,9 @@ public class Bayes {
                 int numNormalAtts = normalAtts.size();
                 for (Instance instance : this.data) {
                     Set<String> normalEvents = new HashSet<>();
-                    normalAtts.forEach(normalAttName -> {
-                        normalEvents.add(normalAttName + ": " + instance.stringValue(this.data.attribute(normalAttName)));
-                    });
+                    normalAtts.forEach(normalAttName ->
+                        normalEvents.add(normalAttName + ": " + instance.stringValue(this.data.attribute(normalAttName)))
+                    );
                     if (correlationMap.containsKey(normalEvents)) {
                         for (int i = 0; i < numSensitiveAtts; i++) {
                             String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
