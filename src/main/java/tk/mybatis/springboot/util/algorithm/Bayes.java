@@ -34,13 +34,13 @@ class Tuple<T0, T1> {
         setT0(t0);
         setT1(t1);
     }
-    private void setT0(T0 t0) {
+    public void setT0(T0 t0) {
         this.t0 = t0;
     }
     public T0 getT0() {
         return t0;
     }
-    private void setT1(T1 t1) {
+    public void setT1(T1 t1) {
         this.t1 = t1;
     }
     public T1 getT1() {
@@ -69,19 +69,19 @@ class Triple<T0, T1, T2> {
         setT1(t1);
         setT2(t2);
     }
-    private void setT0(T0 t0) {
+    public void setT0(T0 t0) {
         this.t0 = t0;
     }
     public T0 getT0() {
         return t0;
     }
-    private void setT1(T1 t1) {
+    public void setT1(T1 t1) {
         this.t1 = t1;
     }
     public T1 getT1() {
         return t1;
     }
-    private void setT2(T2 t2) {
+    public void setT2(T2 t2) {
         this.t2 = t2;
     }
     public T2 getT2() {
@@ -178,10 +178,12 @@ public class Bayes {
         JSONObject gbn = new JSONObject();
         gbn.put("GBN", getGlobalGBN(localSearchAlgorithm, attList));
         gbn.put("attributes", getAttDistribution(attList));
+        gbn.put("correlations", getCorrelations());
         return gbn.toJSONString();
     }
 
     public String editGBN(List<JSONObject> events){
+        JSONObject gbn = new JSONObject();
         int numAttributes = this.data.numAttributes();
         List<String> editAttName = new ArrayList<>();
         for(JSONObject attInfo : events){
@@ -268,7 +270,10 @@ public class Bayes {
         }
         
         this.dataAggregated = new Instances(this.data);
-        return getGlobalGBN("K2").toJSONString();
+
+        gbn.put("GBN", getGlobalGBN("K2"));
+        gbn.put("correlations", getCorrelations());
+        return gbn.toJSONString();
     }
 
     public String getRecommendation(List<JSONObject> links, List<JSONObject> utilityList){
@@ -362,7 +367,7 @@ public class Bayes {
 
             this.recommendationList.add(recommendation);
         }
-        Collections.sort(this.recommendationList, (o1, o2) -> {
+        this.recommendationList.sort( (o1, o2) -> {
             boolean risk1 = false, risk2 = false;
             for(Object _delta : o1.getJSONObject("risk").values()){
                 double delta = Double.parseDouble(_delta.toString());
@@ -832,7 +837,7 @@ public class Bayes {
                 }
             }
         }
-        Collections.sort(recList, (o1, o2) -> {
+        recList.sort( (o1, o2) -> {
             double v1 = o1.getDoubleValue("uL");
             double v2 = o2.getDoubleValue("uL");
             if(v2 > v1){
@@ -903,7 +908,7 @@ public class Bayes {
             group.put("nodes", nodes);
             localGBN.add(group);
         }
-        Collections.sort(localGBN, (o1, o2) -> o2.getIntValue("num") - o1.getIntValue("num"));
+        localGBN.sort( (o1, o2) -> o2.getIntValue("num") - o1.getIntValue("num"));
         JSONArray jsonLocalGBN = JSONArray.parseArray(JSON.toJSONString(localGBN));
         return jsonLocalGBN;
     }
@@ -1357,6 +1362,90 @@ public class Bayes {
             array.set(i, rVal);
             array.set(ri, curVal);
         }
+    }
+
+    private JSONObject getCorrelations(){
+        int numInstances = this.data.numInstances();
+        JSONObject correlations = new JSONObject();
+        List<String> allNormalAtts = new ArrayList<>();
+        List<String> sensitiveAtts = new ArrayList<>();
+        Map<Set<String>, Tuple<Integer, List<Map<String, Integer>>>> correlationMap = new HashMap<>(); //Map(normalEventsCombination, sensitiveEvents);
+        this.allAttSensitivity.forEach((attName,sensitive)->{
+            if(sensitive){
+                sensitiveAtts.add(attName);
+            } else {
+                allNormalAtts.add(attName);
+            }
+        });
+        int numSensitiveAtts = sensitiveAtts.size();
+        int numAllNormalAtts = allNormalAtts.size();
+        for(int len = 1; len <= numAllNormalAtts; len++){
+            for(int start = 0; start < numAllNormalAtts - len; start++) {
+                List<String> normalAtts = new ArrayList<>();
+                for (int i = start; i < start + len; i++) {
+                    normalAtts.add(allNormalAtts.get(i));
+                }
+                int numNormalAtts = normalAtts.size();
+                for (Instance instance : this.data) {
+                    Set<String> normalEvents = new HashSet<>();
+                    normalAtts.forEach(normalAttName -> {
+                        normalEvents.add(normalAttName + ": " + instance.stringValue(this.data.attribute(normalAttName)));
+                    });
+                    if (correlationMap.containsKey(normalEvents)) {
+                        for (int i = 0; i < numSensitiveAtts; i++) {
+                            String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
+                            Map<String, Integer> sensitiveAtt = correlationMap.get(normalEvents).getT1().get(i);
+                            sensitiveAtt.put(eventName, sensitiveAtt.get(eventName) + 1);
+                            correlationMap.get(normalEvents).setT0(correlationMap.get(normalEvents).getT0()+1);
+                        }
+                    } else { // initialzation
+                        List<Map<String, Integer>> sensitiveEventsList = new ArrayList<>();
+                        sensitiveAtts.forEach(sensitiveAttName -> {
+                            Map<String, Integer> sensitiveEvents = new HashMap<>();
+                            Enumeration e = this.data.attribute(sensitiveAttName).enumerateValues();
+                            while (e.hasMoreElements()) {
+                                sensitiveEvents.put((String) e.nextElement(), 0);
+                            }
+                            sensitiveEventsList.add(sensitiveEvents);
+                        });
+                        correlationMap.put(normalEvents, new Tuple<>(1, sensitiveEventsList));
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < numSensitiveAtts; i++) {
+            String sensitiveAttName = sensitiveAtts.get(i);
+            Enumeration e = this.data.attribute(sensitiveAttName).enumerateValues();
+            while (e.hasMoreElements()) {
+                String eventName = (String)e.nextElement();
+                String sensitiveEventName = sensitiveAttName+": "+eventName;
+                JSONObject correlation = new JSONObject();
+                List<JSONObject> probabilityList = new ArrayList<>();
+                final int index = i;
+                correlationMap.forEach((normalEventSet, tuple)->{
+                    double correlationValue = (double) tuple.getT1().get(index).get(eventName) / tuple.getT0();
+                    JSONObject probabilities = new JSONObject();
+                    probabilities.put("eventLists", normalEventSet);
+                    probabilities.put("correlations", correlationValue);
+                    probabilityList.add(probabilities);
+                });
+                probabilityList.sort((o1, o2) -> {
+                    double v1 = o1.getDoubleValue("correlations");
+                    double v2 = o2.getDoubleValue("correlations");
+                    if(v1 > v2){
+                        return -1;
+                    } else if(v1 < v2){
+                        return 1;
+                    } else{
+                        return 0;
+                    }
+                });
+                correlation.put("data", probabilityList);
+                correlation.put("pro", this.priorMap.get(this.nodesMap.get(sensitiveEventName)));
+                correlations.put(sensitiveEventName, correlation);
+            }
+        }
+        return correlations;
     }
 
     /**
