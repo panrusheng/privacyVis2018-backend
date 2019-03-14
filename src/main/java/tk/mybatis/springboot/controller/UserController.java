@@ -25,7 +25,7 @@ public class UserController {
     private Bayes bn;
 
     UserController() {
-        bn = new Bayes("student");
+        bn = new Bayes("user");
     }
 
     @RequestMapping//Home
