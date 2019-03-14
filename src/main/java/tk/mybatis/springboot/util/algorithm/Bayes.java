@@ -633,10 +633,10 @@ public class Bayes {
                 this.attDescription.put("payment" ,  JSON.parseObject("{\"description\" : \"Method of payment\", \"type\": \"categorical\"}"));
                 this.attDescription.put("polStatus" ,  JSON.parseObject("{\"description\" : \"Police status\", \"type\": \"categorical\"}"));
                 this.attDescription.put("lastPrem" ,  JSON.parseObject("{\"description\" : \"Premium - Total for the previous year\", \"type\": \"numerical\"}"));
-                this.attDescription.put("garBefore" ,  JSON.parseObject("{\"description\" : \"Option \"Gardens\" included before 1st renewal\", \"type\": \"categorical\"}"));
-                this.attDescription.put("garPost" ,  JSON.parseObject("{\"description\" : \"Option \"Gardens\" included after 1st renewal\", \"type\": \"categorical\"}"));
-                this.attDescription.put("keyBefore" ,  JSON.parseObject("{\"description\" : \"Option \"Replacement of keys\" included before 1st renewal\", \"type\": \"categorical\"}"));
-                this.attDescription.put("keyAfter" ,  JSON.parseObject("{\"description\" : \"Option \"Replacement of keys\" included after 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("garBefore" ,  JSON.parseObject("{\"description\" : \"Option Gardens included before 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("garPost" ,  JSON.parseObject("{\"description\" : \"Option Gardens included after 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("keyBefore" ,  JSON.parseObject("{\"description\" : \"Option Replacement of keys included before 1st renewal\", \"type\": \"categorical\"}"));
+                this.attDescription.put("keyAfter" ,  JSON.parseObject("{\"description\" : \"Option Replacement of keys included after 1st renewal\", \"type\": \"categorical\"}"));
             } break;
             case "student": {
                 this.attDescription.put("gender" ,  JSON.parseObject("{\"description\" : \"Student's gender\", \"type\": \"categorical\"}"));
@@ -1439,7 +1439,6 @@ public class Bayes {
                 for (int i = start; i < start + len; i++) {
                     normalAtts.add(allNormalAtts.get(i));
                 }
-                int numNormalAtts = normalAtts.size();
                 for (Instance instance : this.data) {
                     Set<String> normalEvents = new HashSet<>();
                     normalAtts.forEach(normalAttName ->
@@ -1507,7 +1506,7 @@ public class Bayes {
      * @param args
      */
     public static void main(String[] args) {
-        Bayes bn = new Bayes();
+        Bayes bn = new Bayes("home");
         List<DataSegment> test= new ArrayList<>();
         test.add(new DataSegment(4, 5));
         test.add(new DataSegment(2, 3));
