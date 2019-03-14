@@ -3,6 +3,7 @@ package tk.mybatis.springboot.util.algorithm;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import weka.classifiers.Classifier;
+import weka.classifiers.Evaluation;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.search.local.*;
 import weka.classifiers.functions.LibSVM;
@@ -17,6 +18,7 @@ import weka.filters.unsupervised.attribute.Discretize;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.Random;
 
 enum ClassifierModel {
     SVM, RandomForest, BayesianNetwork, KNN, DecisionTree
@@ -185,6 +187,12 @@ public class Model {
         modelOriD.buildClassifier(oriD);
         modelProD.buildClassifier(proD);
 
+        Evaluation evalOri = new Evaluation(oriD);
+        evalOri.crossValidateModel(modelOriD, oriD, 10, new Random(1));
+
+        Evaluation evalPro = new Evaluation(proD);
+        evalPro.crossValidateModel(modelProD, proD, 10, new Random(1));
+
         Attribute classAtt = oriD.classAttribute();
         String attName = classAtt.name();
         int numVals = classAtt.numValues();
@@ -195,69 +203,30 @@ public class Model {
             String eventName = attName + ": " + value;
 
             int frequency = 0;
-            int tp, tn, fp, fn;
-            tp = tn = fp = fn = 0;
-
             for (Instance instance : oriD) {
-                String predictVal = classAtt.value((int) modelOriD.classifyInstance(instance));
                 String realVal = instance.stringValue(classAtt);
-
-                if (realVal.equals(value)) {
-                    if (predictVal.equals(value)) {
-                        tp++;
-                    } else {
-                        fn++;
-                    }
-                } else {
-                    if (!predictVal.equals(value)) {
-                        tn++;
-                    } else {
-                        fp++;
-                    }
-                }
                 if (realVal.equals(value)) {
                     frequency++;
                 }
             }
 
             JSONObject measure = new JSONObject();
-            measure.put("TP", tp);
-            measure.put("TN", tn);
-            measure.put("FP", fp);
-            measure.put("FN", fn);
-            measure.put("sensitivity", (double)tp / (tp + fn));
-            measure.put("specificity", (double)tn / (tn + fp));
+            measure.put("TP", evalOri.numTruePositives(i));
+            measure.put("TN", evalOri.numTrueNegatives(i));
+            measure.put("FP", evalOri.numFalsePositives(i));
+            measure.put("FN", evalOri.numFalseNegatives(i));
+            measure.put("sensitivity", evalOri.truePositiveRate(i));
+            measure.put("specificity", 1 - evalOri.falsePositiveRate(i));
 
             event.put("oriD", measure);
 
-            tp = tn = fp = fn = 0;
-
-            for (Instance instance : proD) {
-                String predictVal = classAtt.value((int) modelProD.classifyInstance(instance));
-                String realVal = instance.stringValue(classAtt);
-
-                if (realVal.equals(value)) {
-                    if (predictVal.equals(value)) {
-                        tp++;
-                    } else {
-                        fn++;
-                    }
-                } else {
-                    if (!predictVal.equals(value)) {
-                        tn++;
-                    } else {
-                        fp++;
-                    }
-                }
-            }
-
             measure = new JSONObject();
-            measure.put("TP", tp);
-            measure.put("TN", tn);
-            measure.put("FP", fp);
-            measure.put("FN", fn);
-            measure.put("sensitivity", (double)tp / (tp + fn));
-            measure.put("specificity", (double)tn / (tn + fp));
+            measure.put("TP", evalPro.numTruePositives(i));
+            measure.put("TN", evalPro.numTrueNegatives(i));
+            measure.put("FP", evalPro.numFalsePositives(i));
+            measure.put("FN", evalPro.numFalseNegatives(i));
+            measure.put("sensitivity", evalPro.truePositiveRate(i));
+            measure.put("specificity", 1 - evalPro.falsePositiveRate(i));
 
             event.put("proD", measure);
             event.put("eveName", eventName);
