@@ -1012,7 +1012,7 @@ public class Bayes {
                         range.add(this.attMinMax.get(attName)[0]);
                         range.add(this.attMinMax.get(attName)[1]);
                         attObj.put("range", range);
-                        attObj.put("list", this.attGroupList.get(attName));
+                        attObj.put("list", this.attGroupList.get(attName).getT0());
                         attObj.put("splitPoints", this.attSplitPoint.get(attName));
                     } catch(Exception e){
                         e.printStackTrace();
