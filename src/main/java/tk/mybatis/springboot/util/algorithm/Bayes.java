@@ -807,7 +807,7 @@ public class Bayes {
 
                             link.put("source", eventNoMap.get(parentId)); //P(A|B)
                             link.put("target", eventNoMap.get(childId)); //P(A|B')
-                            link.put("value", cpt[2]);
+                            link.put("value", cpt[2]-cpt[1]);
                             link.put("cpt", cpt);
                             linkList.add(link);
                         }
@@ -919,7 +919,7 @@ public class Bayes {
         List<JSONObject> localGBN = new ArrayList<>();
         for(Instance instance : this.data){
             JSONArray links = new JSONArray();
-            Map<String, Integer> entityEventMap = new HashMap();
+            Map<String, Integer> entityEventMap = new HashMap<>();
             for(String att : this.allAttName){
                 entityEventMap.put(att, this.nodesMap.get(att + ": " + numericFilter(instance.stringValue(this.data.attribute(att)))));
             }
