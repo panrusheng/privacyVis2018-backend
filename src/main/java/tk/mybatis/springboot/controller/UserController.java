@@ -35,6 +35,12 @@ public class UserController {
 
     @RequestMapping(value = "load_data", method = RequestMethod.POST)
     public String loadData(HttpServletRequest request){
+        String dataset = request.getParameter("dataset");
+
+        if (dataset != null) {
+            bn = new Bayes(dataset);
+        }
+        
         JSONObject response = new JSONObject();
         response.put("attList",bn.getAttDescription());
         return response.toJSONString();
