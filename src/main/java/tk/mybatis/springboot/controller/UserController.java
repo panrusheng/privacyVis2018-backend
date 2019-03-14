@@ -25,7 +25,6 @@ public class UserController {
     private Bayes bn;
 
     UserController() {
-        bn = new Bayes("student");
     }
 
     @RequestMapping//Home
@@ -39,6 +38,8 @@ public class UserController {
 
         if (dataset != null) {
             bn = new Bayes(dataset);
+        } else {
+            bn = new Bayes("user");
         }
         
         JSONObject response = new JSONObject();

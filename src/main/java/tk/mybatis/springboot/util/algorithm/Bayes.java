@@ -139,7 +139,7 @@ public class Bayes {
     private Map<Integer, Set<Triple<Integer, Double, JSONArray>>> linksMap; // source -> Set<target>
     private BiMap<String, Integer> nodesMap;
     private Map<String, double[]> attMinMax;
-    private Map<String, int[]> attGroupList;
+    private Map<String, Tuple<List<Integer>, Boolean>> attGroupList; // Tuple<groupList, isIntNumerical>
     private Map<String, List<Double>> attSplitPoint;
     private List<JSONObject> recommendationList;
     private JSONArray recommendationTrimResult;
@@ -318,7 +318,18 @@ public class Bayes {
                     data.put(nodeID[0], nodeID[1]);
                 }
             }
+            this.allAttName.forEach(attName->{
+                if(!this.allAttSensitivity.get(attName) && !data.containsKey(attName)){
+                    data.put(attName, "?");
+                }
+            });
             recommendation.put("data",data);
+
+            Set<String> allAttList = new HashSet<>(this.allAttName);
+            nodes.forEach((Object node)->{
+                String attName = ((JSONObject) node).getString("id").split(": ")[0];
+                allAttList.remove(attName);
+            });
 
             JSONArray records = new JSONArray();
             for(int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++){
@@ -348,6 +359,18 @@ public class Bayes {
                     }
                 }
                 if(j == nodes.size()){
+                    allAttList.forEach(att->{
+                        String type = this.attDescription.getJSONObject(att).getString("type");
+                        JSONObject recordDatum  = new JSONObject();
+                        recordDatum.put("attName", att);
+                        if(type.equals("categorical")) {
+                            recordDatum.put("value", instance.stringValue(this.data.attribute(att)));
+                        } else{
+                            recordDatum.put("value", originalInstance.value(this.originalData.attribute(att)));
+                        }
+                        recordDatum.put("utility", this.utilityMap.get(att));
+                        recordData.add(recordDatum);
+                    });
                     JSONObject record = new JSONObject();
                     record.put("id", i);
                     record.put("data",recordData);
@@ -404,9 +427,10 @@ public class Bayes {
             String attName = eventName.split(": ")[0];
             String type = this.attDescription.getJSONObject(attName).getString("type");
             if(type.equals("numerical") && !numericEventCntMap.containsKey(attName)){
-                int[] groupList = new int[GROUP_NUM];
-                for(int i = 0; i < GROUP_NUM; i++){
-                    groupList[i] = this.attGroupList.get(attName)[i];
+                int groupNum = this.attGroupList.get(attName).getT0().size();
+                int[] groupList = new int[groupNum];
+                for(int i = 0; i < groupNum; i++){
+                    groupList[i] = this.attGroupList.get(attName).getT0().get(i);
                 }
                 numericEventCntMap.put(attName, groupList);
             }
@@ -525,7 +549,7 @@ public class Bayes {
                     result.put("range", range);
                     JSONArray dataList = new JSONArray();
                     double minRate = Double.POSITIVE_INFINITY;
-                    int[] oriGroupList = this.attGroupList.get(attName);
+                    List<Integer> oriGroupList = this.attGroupList.get(attName).getT0();
                     int[] curGroupList = numericEventCntMap.get(attName);
                     Enumeration e = this.data.attribute(attName).enumerateValues();
                     while(e.hasMoreElements()){
@@ -540,7 +564,7 @@ public class Bayes {
                     }
                     for(int i = 0; i < GROUP_NUM; i++){
                         JSONObject data = new JSONObject();
-                        int oriV = oriGroupList[i];
+                        int oriV = oriGroupList.get(i);
                         int curV = curGroupList[i];
                         data.put("oriV", oriV);
                         data.put("curV", curV);
@@ -807,7 +831,7 @@ public class Bayes {
 
                             link.put("source", eventNoMap.get(parentId)); //P(A|B)
                             link.put("target", eventNoMap.get(childId)); //P(A|B')
-                            link.put("value", cpt[2]);
+                            link.put("value", cpt[2]-cpt[1]);
                             link.put("cpt", cpt);
                             linkList.add(link);
                         }
@@ -919,7 +943,7 @@ public class Bayes {
         List<JSONObject> localGBN = new ArrayList<>();
         for(Instance instance : this.data){
             JSONArray links = new JSONArray();
-            Map<String, Integer> entityEventMap = new HashMap();
+            Map<String, Integer> entityEventMap = new HashMap<>();
             for(String att : this.allAttName){
                 entityEventMap.put(att, this.nodesMap.get(att + ": " + numericFilter(instance.stringValue(this.data.attribute(att)))));
             }
@@ -1123,6 +1147,13 @@ public class Bayes {
         }
     }
 
+    private String integerTrimEndZero(String datum){
+        if(datum.endsWith(".00")){
+            return datum.substring(0, datum.length()-3);
+        }
+        return datum;
+    }
+
     private void initUtilityMap(){
         this.utilityMap = new HashMap<>();
         for(String attName : this.allAttName){
@@ -1144,10 +1175,6 @@ public class Bayes {
                 minMax[2] = 0.0; //split: (max - min) / groupNum
                 this.attMinMax.put(attName, minMax);
 
-                int[] groupList = new int[GROUP_NUM];
-                Arrays.fill(groupList, 0);
-                this.attGroupList.put(attName, groupList);
-
                 List<Double> splitPoint = new ArrayList<>();
                 this.attSplitPoint.put(attName, splitPoint);
             }
@@ -1168,59 +1195,99 @@ public class Bayes {
 
         this.data = new Instances(originalData);
         this.attMinMax.forEach((String attName, double[] value)->{
-            value[2] = (value[1] - value[0]) / GROUP_NUM;
             Attribute numericAttribute = this.originalData.attribute(attName);
+            Boolean isInt = false;
+            List<Integer> _groupList;
             double minValue = value[0];
+            double maxValue = value[1];
+            if(minValue - (int)minValue == 0.0 && maxValue - (int)maxValue == 0.0){
+                isInt = true;
+                if((int)maxValue - (int)minValue < GROUP_NUM){
+                    _groupList = new ArrayList<>(Collections.nCopies((int)maxValue - (int)minValue,0));
+                } else {
+                    _groupList = new ArrayList<>(Collections.nCopies(GROUP_NUM,0));
+                }
+            } else {
+                _groupList = new ArrayList<>(Collections.nCopies(GROUP_NUM,0));
+            }
+            int groupNum = _groupList.size();
+            value[2] = (maxValue - minValue) / groupNum;
             double split = value[2];
             for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
                 Instance instance = data.instance(i);
-                int index = (int) ((instance.value(numericAttribute) - minValue) / split);
-                if(index == GROUP_NUM) index--;
-                this.attGroupList.get(attName)[index]++;
+                double instanceValue = instance.value(numericAttribute);
+                int index = 0;
+                for(; index < groupNum; index++){
+                    double ceilValue;
+                    if(isInt){
+                        ceilValue = (int)(minValue+split*index);
+                    } else {
+                        ceilValue = minValue+split*index;
+                    }
+                    if(instanceValue <= ceilValue){
+                        break;
+                    }
+                }
+                if(index == groupNum){
+                    index--;
+                }
+                _groupList.set(index, _groupList.get(index)+1);
             }
+            Tuple<List<Integer>, Boolean> groupList  = new Tuple<>(_groupList, isInt);
+            this.attGroupList.put(attName, groupList);
         });
 
         int[] numAttributes = {this.data.numAttributes()};
-        this.attGroupList.forEach((String attName, int[] groupList)->{
+        this.attGroupList.forEach((String attName, Tuple<List<Integer>, Boolean> groupList)->{
             double minValue = this.attMinMax.get(attName)[0];
             double maxValue = this.attMinMax.get(attName)[1];
             double split = this.attMinMax.get(attName)[2];
             List<Double> splitPoint = this.attSplitPoint.get(attName);
-            int len = groupList.length;
+            List<Integer> _groupList = groupList.getT0();
+            boolean isInt = groupList.getT1();
+            int len = _groupList.size();
             int maxNo = 0;
-            int maxG = groupList[maxNo];
-            int minG = groupList[0];
+            int maxG = _groupList.get(maxNo);
+            int minG = _groupList.get(0);
             for(int i = 1; i < len; i++){
-                if(groupList[i] > maxG){
+                if(_groupList.get(i) > maxG){
                     maxNo = i;
-                    maxG = groupList[i];
+                    maxG = _groupList.get(i);
                 }
             }
             boolean flag = true;
             for(int i = maxNo - 1; i > -1; i--){
                 if(flag){
-                    if(groupList[i] < maxG * LIMIT_RATE){
-                        splitPoint.add(minValue+i*split);
-                        minG = groupList[i];
+                    if(_groupList.get(i) < maxG * LIMIT_RATE){
+                        if(isInt){
+                            splitPoint.add((double)(int)(minValue+i*split+0.5));
+                        }else {
+                            splitPoint.add(minValue+i*split);
+                        }
+                        minG = _groupList.get(i);
                         flag = false;
                     }
                 } else{
-                    if(groupList[i] > minG / LIMIT_RATE){
-                        maxG = groupList[i];
+                    if(_groupList.get(i) > minG / LIMIT_RATE){
+                        maxG = _groupList.get(i);
                         flag = true;
                     }
                 }
             }
             for(int i = maxNo + 1; i < len; i++){
                 if(flag){
-                    if(groupList[i] < maxG * LIMIT_RATE){
-                        splitPoint.add(minValue+i*split);
-                        minG = groupList[i];
+                    if(_groupList.get(i) < maxG * LIMIT_RATE){
+                        if(isInt){
+                            splitPoint.add((double)(int)(minValue+i*split+0.5));
+                        }else {
+                            splitPoint.add(minValue+i*split);
+                        }
+                        minG = _groupList.get(i);
                         flag = false;
                     }
                 } else{
-                    if(groupList[i] > minG / LIMIT_RATE){
-                        maxG = groupList[i];
+                    if(_groupList.get(i) > minG / LIMIT_RATE){
+                        maxG =_groupList.get(i);
                         flag = true;
                     }
                 }
@@ -1243,12 +1310,12 @@ public class Bayes {
 
             /* split the numeric data */
             List<String> attributeValues = new ArrayList<>();
-            attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + splitPoint.get(0)) + "]");
+            attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(0))) + "]");
             for(int i = 0, size = splitPoint.size()-1; i < size; i++){
-                String category = "(" + df.format(minValue + splitPoint.get(i)) + "~" + df.format(minValue + splitPoint.get(i+1)) + "]";
+                String category = "(" + integerTrimEndZero(df.format(minValue + splitPoint.get(i))) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(i+1))) + "]";
                 attributeValues.add(category);
             }
-            attributeValues.add("(" + df.format(minValue + splitPoint.get(splitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+            attributeValues.add("(" + integerTrimEndZero(df.format(minValue + splitPoint.get(splitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
             Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
             this.data.insertAttributeAt(categoryAttribute, numAttributes[0]++);
             for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
