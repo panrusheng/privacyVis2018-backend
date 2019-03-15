@@ -238,12 +238,12 @@ public class Bayes {
                 double minValue = this.attMinMax.get(attName)[0];
                 double maxValue = this.attMinMax.get(attName)[1];
                 List<String> attributeValues = new ArrayList<>();
-                attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + newSplitPoint.get(0)) + "]");
+                attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(0))) + "]");
                 for(int i = 0, size = newSplitPoint.size()-1; i < size; i++){
-                    String category = "(" + df.format(minValue + newSplitPoint.get(i)) + "~" + df.format(minValue + newSplitPoint.get(i+1)) + "]";
+                    String category = "(" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(i))) + "~" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(i+1))) + "]";
                     attributeValues.add(category);
                 }
-                attributeValues.add("(" + df.format(minValue + newSplitPoint.get(newSplitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+                attributeValues.add("(" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(newSplitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
                 Attribute newCategoryAttribute = new Attribute("_"+attName, attributeValues);
                 this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
                 for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
