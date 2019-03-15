@@ -270,8 +270,6 @@ public class Bayes {
             }
         }
         
-        this.dataAggregated = new Instances(this.data);
-
         gbn.put("GBN", getGlobalGBN("K2"));
         gbn.put("correlations", getCorrelations());
         return gbn.toJSONString();
