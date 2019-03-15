@@ -1319,7 +1319,6 @@ public class Bayes {
 
             /* split the numeric data */
             List<String> attributeValues = new ArrayList<>();
-            List<String> attributeValues = new ArrayList<>();
             attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(0))) + "]");
             for(int i = 0, size = splitPoint.size()-1; i < size; i++){
                 String category = "(" + integerTrimEndZero(df.format(minValue + splitPoint.get(i))) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(i+1))) + "]";
