@@ -1292,6 +1292,7 @@ public class Bayes {
                     }
                 }
             }
+            splitPoint.sort(Comparator.naturalOrder());
             Attribute numericAttribute = this.originalData.attribute(attName);
             if(splitPoint.size() == 0) { // 2分点(中位数)
                 Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
