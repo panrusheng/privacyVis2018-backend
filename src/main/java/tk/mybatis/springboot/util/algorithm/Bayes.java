@@ -346,12 +346,12 @@ public class Bayes {
                             JSONObject recordDatum  = new JSONObject();
                             recordDatum.put("attName", att);
                             if(type.equals("categorical")) {
-                                recordDatum.put("value", event);
-                            } else{
-                                recordDatum.put("value", originalInstance.value(attributeOriginal));
-                            }
-                            recordDatum.put("utility", this.utilityMap.get(att));
-                            recordData.add(recordDatum);
+                            recordDatum.put("value", event);
+                        } else{
+                            recordDatum.put("value", originalInstance.value(attributeOriginal));
+                        }
+                        recordDatum.put("utility", this.utilityMap.get(att));
+                        recordData.add(recordDatum);
                         }
                     }else{
                         break;
