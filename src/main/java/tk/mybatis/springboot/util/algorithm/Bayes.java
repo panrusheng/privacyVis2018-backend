@@ -1513,12 +1513,7 @@ public class Bayes {
                         normalEvents.add(normalAttName + ": " + instance.stringValue(this.data.attribute(normalAttName)))
                     );
                     if (correlationMap.containsKey(normalEvents)) {
-                        for (int i = 0; i < numSensitiveAtts; i++) {
-                            String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
-                            Map<String, Integer> sensitiveAtt = correlationMap.get(normalEvents).getT1().get(i);
-                            sensitiveAtt.put(eventName, sensitiveAtt.get(eventName) + 1);
-                            correlationMap.get(normalEvents).setT0(correlationMap.get(normalEvents).getT0()+1);
-                        }
+                        correlationMap.get(normalEvents).setT0(correlationMap.get(normalEvents).getT0()+1);
                     } else { // initialzation
                         List<Map<String, Integer>> sensitiveEventsList = new ArrayList<>();
                         sensitiveAtts.forEach(sensitiveAttName -> {
@@ -1530,6 +1525,11 @@ public class Bayes {
                             sensitiveEventsList.add(sensitiveEvents);
                         });
                         correlationMap.put(normalEvents, new Tuple<>(1, sensitiveEventsList));
+                    }
+                    for (int i = 0; i < numSensitiveAtts; i++) {
+                        String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
+                        Map<String, Integer> sensitiveAtt = correlationMap.get(normalEvents).getT1().get(i);
+                        sensitiveAtt.put(eventName, sensitiveAtt.get(eventName) + 1);
                     }
                 }
             }
