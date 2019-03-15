@@ -185,6 +185,7 @@ public class Bayes {
     }
 
     public String editGBN(List<JSONObject> events){
+        this.data = new Instances(this.dataAggregated);
         JSONObject gbn = new JSONObject();
         int numAttributes = this.data.numAttributes();
         List<String> editAttName = new ArrayList<>();
@@ -199,7 +200,6 @@ public class Bayes {
                 while(e.hasMoreElements()){
                     newAttributeValues.add((String)e.nextElement());
                 }
-
                 groups.forEach(g->{
                     JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
@@ -208,7 +208,6 @@ public class Bayes {
                     }
                     newAttributeValues.add(newEventName);
                 });
-
                 int curAttIndex = numAttributes;
                 Attribute newCategoryAttribute = new Attribute("_"+attName, newAttributeValues);
                 if (this.data.attribute("_" + attName) != null) {
@@ -1181,8 +1180,8 @@ public class Bayes {
         }
 
         this.attMinMax.forEach((String attName, double[] value)->{
-            for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
-                Instance instance = originalData.instance(i);
+            for (int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++) {
+                Instance instance = this.originalData.instance(i);
                 double attEventValue = instance.value(this.originalData.attribute(attName));
                 if (attEventValue < value[0]) {
                     value[0] = attEventValue;
@@ -1193,7 +1192,7 @@ public class Bayes {
             }
         });
 
-        this.data = new Instances(originalData);
+        this.data = new Instances(this.originalData);
         this.attMinMax.forEach((String attName, double[] value)->{
             Attribute numericAttribute = this.originalData.attribute(attName);
             Boolean isInt = false;
@@ -1213,8 +1212,8 @@ public class Bayes {
             int groupNum = _groupList.size();
             value[2] = (maxValue - minValue) / groupNum;
             double split = value[2];
-            for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
-                Instance instance = data.instance(i);
+            for(int i = 0, numInstance =  this.data.numInstances(); i < numInstance; i++) {
+                Instance instance =  this.data.instance(i);
                 double instanceValue = instance.value(numericAttribute);
                 int index = 0;
                 for(; index < groupNum; index++){
