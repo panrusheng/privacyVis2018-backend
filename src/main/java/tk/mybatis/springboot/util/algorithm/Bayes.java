@@ -192,6 +192,7 @@ public class Bayes {
         for(JSONObject attInfo : events){
             String attName = attInfo.getString("attrName");
             editAttName.add(attName);
+            Attribute attributeOriginal = this.originalData.attribute(attName);
             Attribute attribute = this.data.attribute(attName);
             if(attInfo.containsKey("groups")){ //category
                 List<JSONObject> groups = attInfo.getJSONArray("groups").toJavaList(JSONObject.class);
@@ -218,22 +219,17 @@ public class Bayes {
                 }
 
                 groups.forEach(g->{
-                        JSONArray categories = g.getJSONArray("categories");
+                    JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
                     for (int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                         Instance instance = this.data.instance(i);
-
                         if (categories.contains(instance.stringValue(attribute))) {
                             instance.setValue(curAttIndex, newEventName);
                         }
                     }
                 });
             } else{ //numeric
-                JSONArray jsonNewSplitPoint = attInfo.getJSONArray("splitPoints");
-                List<Double> newSplitPoint = new ArrayList<>();
-                for(Object splitPoint : jsonNewSplitPoint){
-                    newSplitPoint.add(Double.parseDouble(splitPoint.toString()));
-                }
+                List<Double> newSplitPoint = attInfo.getJSONArray("splitPoints").toJavaList(Double.class);
                 double minValue = this.attMinMax.get(attName)[0];
                 double maxValue = this.attMinMax.get(attName)[1];
                 List<String> attributeValues = new ArrayList<>();
@@ -248,7 +244,7 @@ public class Bayes {
                 for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                     Instance instance = this.data.instance(i); // to write
                     Instance instanceOrignal = this.originalData.instance(i); // to read
-                    double value = instanceOrignal.value(attribute);
+                    double value = instanceOrignal.value(attributeOriginal);
                     int index = 0, size = newSplitPoint.size();
                     for(; index < size; index++){
                         if(value <= newSplitPoint.get(index)){
