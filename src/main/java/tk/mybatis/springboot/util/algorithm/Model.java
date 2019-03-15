@@ -177,21 +177,12 @@ public class Model {
     }
 
     public static JSONArray test(String classifier, Instances oriD, Instances proD, JSONObject options) throws Exception {
-        Classifier modelOriD = getModel(classifier);
-        Classifier modelProD = getModel(classifier);
-        setOptions(modelOriD, options);
-        setOptions(modelProD, options);
+        Classifier model = getModel(classifier);
+        setOptions(model, options);
 
         JSONArray list = new JSONArray();
 
-        modelOriD.buildClassifier(oriD);
-        modelProD.buildClassifier(proD);
-
-        Evaluation evalOri = new Evaluation(oriD);
-        evalOri.crossValidateModel(modelOriD, oriD, 10, new Random(1));
-
-        Evaluation evalPro = new Evaluation(proD);
-        evalPro.crossValidateModel(modelProD, proD, 10, new Random(1));
+        model.buildClassifier(oriD);
 
         Attribute classAtt = oriD.classAttribute();
         String attName = classAtt.name();
@@ -203,30 +194,70 @@ public class Model {
             String eventName = attName + ": " + value;
 
             int frequency = 0;
+            int tp, tn, fp, fn;
+            tp = tn = fp = fn = 0;
+
             for (Instance instance : oriD) {
+                String predictVal = classAtt.value((int) model.classifyInstance(instance));
                 String realVal = instance.stringValue(classAtt);
+
+                if (predictVal.equals(value)) {
+                    if (predictVal.equals(realVal)) {
+                        tp++;
+                    } else {
+                        fp++;
+                    }
+                } else {
+                    if (!realVal.equals(value)) {
+                        tn++;
+                    } else {
+                        fn++;
+                    }
+                }
+
                 if (realVal.equals(value)) {
                     frequency++;
                 }
             }
 
             JSONObject measure = new JSONObject();
-            measure.put("TP", evalOri.numTruePositives(i));
-            measure.put("TN", evalOri.numTrueNegatives(i));
-            measure.put("FP", evalOri.numFalsePositives(i));
-            measure.put("FN", evalOri.numFalseNegatives(i));
-            measure.put("sensitivity", evalOri.truePositiveRate(i));
-            measure.put("specificity", 1 - evalOri.falsePositiveRate(i));
+            measure.put("TP", tp);
+            measure.put("TN", tn);
+            measure.put("FP", fp);
+            measure.put("FN", fn);
+            measure.put("sensitivity", (double) tp / (tp + fn));
+            measure.put("specificity", (double) tn / (tn + fp));
 
             event.put("oriD", measure);
 
+            tp = tn = fp = fn = 0;
+
+            for (Instance instance : proD) {
+                String predictVal = classAtt.value((int) model.classifyInstance(instance));
+                String realVal = instance.stringValue(classAtt);
+
+                if (predictVal.equals(value)) {
+                    if (predictVal.equals(realVal)) {
+                        tp++;
+                    } else {
+                        fp++;
+                    }
+                } else {
+                    if (!realVal.equals(value)) {
+                        tn++;
+                    } else {
+                        fn++;
+                    }
+                }
+            }
+
             measure = new JSONObject();
-            measure.put("TP", evalPro.numTruePositives(i));
-            measure.put("TN", evalPro.numTrueNegatives(i));
-            measure.put("FP", evalPro.numFalsePositives(i));
-            measure.put("FN", evalPro.numFalseNegatives(i));
-            measure.put("sensitivity", evalPro.truePositiveRate(i));
-            measure.put("specificity", 1 - evalPro.falsePositiveRate(i));
+            measure.put("TP", tp);
+            measure.put("TN", tn);
+            measure.put("FP", fp);
+            measure.put("FN", fn);
+            measure.put("sensitivity", (double) tp / (tp + fn));
+            measure.put("specificity", (double) tn / (tn + fp));
 
             event.put("proD", measure);
             event.put("eveName", eventName);
@@ -234,7 +265,6 @@ public class Model {
             list.add(event);
             // System.out.printf("%s %d, %d, %d, %d\n", eventName, tp, tn, fp, fn);
         }
-
         return list;
     }
 
