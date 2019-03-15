@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSONObject;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.w3c.dom.Attr;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.estimate.SimpleEstimator;
 import weka.classifiers.bayes.net.search.local.*;
@@ -15,7 +16,11 @@ import weka.core.Instances;
 
 import java.io.*;
 import java.text.DecimalFormat;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -185,12 +190,14 @@ public class Bayes {
     }
 
     public String editGBN(List<JSONObject> events){
+        this.data = new Instances(this.dataAggregated);
         JSONObject gbn = new JSONObject();
         int numAttributes = this.data.numAttributes();
         List<String> editAttName = new ArrayList<>();
         for(JSONObject attInfo : events){
             String attName = attInfo.getString("attrName");
             editAttName.add(attName);
+            Attribute attributeOriginal = this.originalData.attribute(attName);
             Attribute attribute = this.data.attribute(attName);
             if(attInfo.containsKey("groups")){ //category
                 List<JSONObject> groups = attInfo.getJSONArray("groups").toJavaList(JSONObject.class);
@@ -199,7 +206,6 @@ public class Bayes {
                 while(e.hasMoreElements()){
                     newAttributeValues.add((String)e.nextElement());
                 }
-
                 groups.forEach(g->{
                     JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
@@ -208,7 +214,6 @@ public class Bayes {
                     }
                     newAttributeValues.add(newEventName);
                 });
-
                 int curAttIndex = numAttributes;
                 Attribute newCategoryAttribute = new Attribute("_"+attName, newAttributeValues);
                 if (this.data.attribute("_" + attName) != null) {
@@ -219,37 +224,32 @@ public class Bayes {
                 }
 
                 groups.forEach(g->{
-                        JSONArray categories = g.getJSONArray("categories");
+                    JSONArray categories = g.getJSONArray("categories");
                     String newEventName = g.getString("name");
                     for (int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                         Instance instance = this.data.instance(i);
-
                         if (categories.contains(instance.stringValue(attribute))) {
                             instance.setValue(curAttIndex, newEventName);
                         }
                     }
                 });
             } else{ //numeric
-                JSONArray jsonNewSplitPoint = attInfo.getJSONArray("splitPoints");
-                List<Double> newSplitPoint = new ArrayList<>();
-                for(Object splitPoint : jsonNewSplitPoint){
-                    newSplitPoint.add(Double.parseDouble(splitPoint.toString()));
-                }
+                List<Double> newSplitPoint = attInfo.getJSONArray("splitPoints").toJavaList(Double.class);
                 double minValue = this.attMinMax.get(attName)[0];
                 double maxValue = this.attMinMax.get(attName)[1];
                 List<String> attributeValues = new ArrayList<>();
-                attributeValues.add("[" + df.format(minValue) + "~" + df.format(minValue + newSplitPoint.get(0)) + "]");
+                attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(0))) + "]");
                 for(int i = 0, size = newSplitPoint.size()-1; i < size; i++){
-                    String category = "(" + df.format(minValue + newSplitPoint.get(i)) + "~" + df.format(minValue + newSplitPoint.get(i+1)) + "]";
+                    String category = "(" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(i))) + "~" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(i+1))) + "]";
                     attributeValues.add(category);
                 }
-                attributeValues.add("(" + df.format(minValue + newSplitPoint.get(newSplitPoint.size()-1)) + "~" + df.format(maxValue) + "]");
+                attributeValues.add("(" + integerTrimEndZero(df.format(minValue + newSplitPoint.get(newSplitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
                 Attribute newCategoryAttribute = new Attribute("_"+attName, attributeValues);
                 this.data.insertAttributeAt(newCategoryAttribute, numAttributes++);
                 for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
                     Instance instance = this.data.instance(i); // to write
                     Instance instanceOrignal = this.originalData.instance(i); // to read
-                    double value = instanceOrignal.value(attribute);
+                    double value = instanceOrignal.value(attributeOriginal);
                     int index = 0, size = newSplitPoint.size();
                     for(; index < size; index++){
                         if(value <= newSplitPoint.get(index)){
@@ -271,8 +271,6 @@ public class Bayes {
             }
         }
         
-        this.dataAggregated = new Instances(this.data);
-
         gbn.put("GBN", getGlobalGBN("K2"));
         gbn.put("correlations", getCorrelations());
         return gbn.toJSONString();
@@ -342,17 +340,18 @@ public class Bayes {
                     String att = attEvent[0];
                     String event = attEvent[1];
                     String type = this.attDescription.getJSONObject(att).getString("type");
+                    Attribute attributeOriginal = this.originalData.attribute(att);
                     if(instance.stringValue(this.data.attribute(att)).equals(event)){
                         if(!this.allAttSensitivity.get(att)) {
                             JSONObject recordDatum  = new JSONObject();
                             recordDatum.put("attName", att);
                             if(type.equals("categorical")) {
-                                recordDatum.put("value", event);
-                            } else{
-                                recordDatum.put("value", originalInstance.value(this.originalData.attribute(att)));
-                            }
-                            recordDatum.put("utility", this.utilityMap.get(att));
-                            recordData.add(recordDatum);
+                            recordDatum.put("value", event);
+                        } else{
+                            recordDatum.put("value", originalInstance.value(attributeOriginal));
+                        }
+                        recordDatum.put("utility", this.utilityMap.get(att));
+                        recordData.add(recordDatum);
                         }
                     }else{
                         break;
@@ -692,11 +691,12 @@ public class Bayes {
     private JSONObject getGlobalGBN(String localSearchAlgorithm, List<JSONObject> attList) {
         this.allAttName = new ArrayList<>();
         this.allAttSensitivity = new HashMap<>();
-        for(JSONObject att : attList){
+//        for(JSONObject att : attList){
+        attList.parallelStream().forEach(att->{
             String attName = (String)att.get("attName");
             this.allAttName.add(attName);
             this.allAttSensitivity.put(attName, (Boolean)att.get("sensitive"));
-        }
+        });
         initUtilityMap();
         dataAggregate();
         return getGlobalGBN(localSearchAlgorithm);
@@ -778,8 +778,10 @@ public class Bayes {
 
             for (int i = 0, numAttributes = this.data.numAttributes(); i < numAttributes; ++i) {
                 String attributeName = this.data.attribute(i).name();
+                final int fi = i;
                 for (int j = 0, numInstances = this.data.numInstances(); j < numInstances; ++j) {
-                    String id = attributeName + ": " + numericFilter(this.data.instance(j).stringValue(i));
+                    Instance instance = this.data.instance(j);
+                    String id = attributeName + ": " + numericFilter(instance.stringValue(fi));
                     if (!priorMap.containsKey(id)) {
                         priorMap.put(id, 0);
                     }
@@ -808,26 +810,27 @@ public class Bayes {
                             cpt[0] = (priorMap.containsKey(parentId) ? (double)priorMap.get(parentId) : 0.0) / numInstances; //P(A)
                             cpt[1] = (priorMap.containsKey(childId) ? (double)priorMap.get(childId) : 0.0) / numInstances; //P(B)
 
-                            int cpt2_p = 0, cpt2_c = 0, cpt3_p = 0, cpt3_c = 0;
+                            int[] cpt2_p = {0}, cpt2_c = {0}, cpt3_p = {0}, cpt3_c = {0};
 
-                            for (int a = 0; a < numInstances; ++a) {
-                                Instance instance = this.data.instance(a);
+//                            for (int a = 0; a < numInstances; ++a) {
+//                                Instance instance = this.data.instance(a);
+                            this.data.parallelStream().forEach(instance -> {
 
                                 if (instance.stringValue(this.data.attribute(attParent)).equals(_valParent)) {
-                                    cpt2_p++;
+                                    cpt2_p[0]++;
                                     if (instance.stringValue(this.data.attribute(att)).equals(_val)) {
-                                        cpt2_c++;
+                                        cpt2_c[0]++;
                                     }
                                 } else {
-                                    cpt3_p++;
+                                    cpt3_p[0]++;
                                     if (instance.stringValue(this.data.attribute(att)).equals(_val)) {
-                                        cpt3_c++;
+                                        cpt3_c[0]++;
                                     }
                                 }
-                            }
+                            });
 
-                            cpt[2] = (double) cpt2_c / cpt2_p;
-                            cpt[3] = (double) cpt3_c / cpt3_p;
+                            cpt[2] = (double) cpt2_c[0] / cpt2_p[0];
+                            cpt[3] = (double) cpt3_c[0] / cpt3_p[0];
 
                             link.put("source", eventNoMap.get(parentId)); //P(A|B)
                             link.put("target", eventNoMap.get(childId)); //P(A|B')
@@ -1054,7 +1057,7 @@ public class Bayes {
      * @return isProtected: [protects(Es1), protects(Es2), ...]
      */
     private double[] getRisk(List<String> normalEvents, List<String> sensitiveEvents) {
-        int numInstances = data.numInstances();
+        int numInstances = this.data.numInstances();
         int numNormalEvents = normalEvents.size();
         int numSensitiveEvents = sensitiveEvents.size();
         double[] risk = new double[numSensitiveEvents];
@@ -1070,7 +1073,8 @@ public class Bayes {
         Arrays.fill(numerator, 0.0);
         Arrays.fill(denominator, 0.0);
 
-        for (Instance instance : data) {
+//        for (Instance instance : this.data) {
+        this.data.parallelStream().forEach(instance -> {
             for(int i = 0; i < numSensitiveEvents; i++){
                 String sensitiveEvent = sensitiveEvents.get(i);
                 Integer sensitiveEventNo = this.nodesMap.get(sensitiveEvent);
@@ -1102,7 +1106,7 @@ public class Bayes {
                     }
                 }
             }
-        }
+        });
         try {
             for(int i = 0; i < numSensitiveEvents; i++){
                 pr_condition[i] = numerator[i] / denominator[i];
@@ -1181,21 +1185,23 @@ public class Bayes {
         }
 
         this.attMinMax.forEach((String attName, double[] value)->{
-            for (int i = 0, numInstance = originalData.numInstances(); i < numInstance; i++) {
-                Instance instance = originalData.instance(i);
-                double attEventValue = instance.value(this.originalData.attribute(attName));
+//            for (int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++) {
+//                Instance instance = this.originalData.instance(i);
+            Attribute attributeoriginal = this.originalData.attribute(attName);
+            this.originalData.parallelStream().forEach(instance -> {
+                double attEventValue = instance.value(attributeoriginal);
                 if (attEventValue < value[0]) {
                     value[0] = attEventValue;
                 }
                 if (attEventValue > value[1]) {
                     value[1] = attEventValue;
                 }
-            }
+            });
         });
 
-        this.data = new Instances(originalData);
+        this.data = new Instances(this.originalData);
         this.attMinMax.forEach((String attName, double[] value)->{
-            Attribute numericAttribute = this.originalData.attribute(attName);
+            Attribute numericAttribute = this.data.attribute(attName);
             Boolean isInt = false;
             List<Integer> _groupList;
             double minValue = value[0];
@@ -1213,13 +1219,15 @@ public class Bayes {
             int groupNum = _groupList.size();
             value[2] = (maxValue - minValue) / groupNum;
             double split = value[2];
-            for(int i = 0, numInstance = data.numInstances(); i < numInstance; i++) {
-                Instance instance = data.instance(i);
+//            for(int i = 0, numInstance =  this.data.numInstances(); i < numInstance; i++) {
+//                Instance instance =  this.data.instance(i);
+            final boolean finalIsInt = isInt;
+            this.data.parallelStream().forEach(instance -> {
                 double instanceValue = instance.value(numericAttribute);
                 int index = 0;
                 for(; index < groupNum; index++){
                     double ceilValue;
-                    if(isInt){
+                    if(finalIsInt){
                         ceilValue = (int)(minValue+split*index);
                     } else {
                         ceilValue = minValue+split*index;
@@ -1232,7 +1240,7 @@ public class Bayes {
                     index--;
                 }
                 _groupList.set(index, _groupList.get(index)+1);
-            }
+            });
             Tuple<List<Integer>, Boolean> groupList  = new Tuple<>(_groupList, isInt);
             this.attGroupList.put(attName, groupList);
         });
@@ -1292,6 +1300,7 @@ public class Bayes {
                     }
                 }
             }
+            splitPoint.sort(Comparator.naturalOrder());
             Attribute numericAttribute = this.originalData.attribute(attName);
             if(splitPoint.size() == 0) { // 2分点(中位数)
                 Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
@@ -1318,8 +1327,9 @@ public class Bayes {
             attributeValues.add("(" + integerTrimEndZero(df.format(minValue + splitPoint.get(splitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
             Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
             this.data.insertAttributeAt(categoryAttribute, numAttributes[0]++);
-            for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
-                Instance instance = this.data.instance(i);
+//            for(int i = 0, numInstance = this.data.numInstances(); i < numInstance; i++) {
+//                Instance instance = this.data.instance(i);
+            this.data.parallelStream().forEach(instance -> {
                 double value = instance.value(numericAttribute);
                 int index = 0, size = splitPoint.size();
                 for(; index < size; index++){
@@ -1328,7 +1338,7 @@ public class Bayes {
                     }
                 }
                 instance.setValue(numAttributes[0]-1, index);
-            }
+            });
         });
 
         for(int i = 0; i < numAttributes[0]; i++){
@@ -1433,9 +1443,9 @@ public class Bayes {
                     int trimCnt = triItem.getIntValue("oriV") - triItem.getIntValue("triV");
 
                     List<Integer> targetIndice = new ArrayList<>();
-                    for (int idx = 0; idx < originalData.numInstances(); ++idx) {
+                    for (int idx = 0; idx < this.originalData.numInstances(); ++idx) {
                         if (result.instance(idx).isMissing(resAttr)) continue;
-                        double oriInsValue = originalData.instance(idx).value(oriAttribute);
+                        double oriInsValue = this.originalData.instance(idx).value(oriAttribute);
                         if (((j == 0 && oriInsValue == rMin) || oriInsValue > rMin) && oriInsValue <= rMax) {
                             targetIndice.add(idx);
                         }
@@ -1502,22 +1512,14 @@ public class Bayes {
         int numAllNormalAtts = allNormalAtts.size();
         for(int len = 1; len <= numAllNormalAtts; len++){
             for(int start = 0; start <= numAllNormalAtts - len; start++) {
-                List<String> normalAtts = new ArrayList<>();
-                for (int i = start; i < start + len; i++) {
-                    normalAtts.add(allNormalAtts.get(i));
-                }
+                List<String> normalAtts = new ArrayList<>(allNormalAtts.subList(start, start+len-1));
                 for (Instance instance : this.data) {
                     Set<String> normalEvents = new HashSet<>();
                     normalAtts.forEach(normalAttName ->
                         normalEvents.add(normalAttName + ": " + instance.stringValue(this.data.attribute(normalAttName)))
                     );
                     if (correlationMap.containsKey(normalEvents)) {
-                        for (int i = 0; i < numSensitiveAtts; i++) {
-                            String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
-                            Map<String, Integer> sensitiveAtt = correlationMap.get(normalEvents).getT1().get(i);
-                            sensitiveAtt.put(eventName, sensitiveAtt.get(eventName) + 1);
-                            correlationMap.get(normalEvents).setT0(correlationMap.get(normalEvents).getT0()+1);
-                        }
+                        correlationMap.get(normalEvents).setT0(correlationMap.get(normalEvents).getT0()+1);
                     } else { // initialzation
                         List<Map<String, Integer>> sensitiveEventsList = new ArrayList<>();
                         sensitiveAtts.forEach(sensitiveAttName -> {
@@ -1529,6 +1531,11 @@ public class Bayes {
                             sensitiveEventsList.add(sensitiveEvents);
                         });
                         correlationMap.put(normalEvents, new Tuple<>(1, sensitiveEventsList));
+                    }
+                    for (int i = 0; i < numSensitiveAtts; i++) {
+                        String eventName = instance.stringValue(this.data.attribute(sensitiveAtts.get(i)));
+                        Map<String, Integer> sensitiveAtt = correlationMap.get(normalEvents).getT1().get(i);
+                        sensitiveAtt.put(eventName, sensitiveAtt.get(eventName) + 1);
                     }
                 }
             }
@@ -1573,18 +1580,39 @@ public class Bayes {
      * @param args
      */
     public static void main(String[] args) {
-        Bayes bn = new Bayes("home");
-        List<DataSegment> test= new ArrayList<>();
-        test.add(new DataSegment(4, 5));
-        test.add(new DataSegment(2, 3));
-        test.contains(new DataSegment(2,4));
-        test.contains(new DataSegment(3,5));
-
-        String li = "[{\"attName\":\"fmp\",\"sensitive\":false},{\"attName\":\"emp\",\"sensitive\":true},{\"attName\":\"gen\",\"sensitive\":false},{\"attName\":\"gcs\",\"sensitive\":false},{\"attName\":\"cat\",\"sensitive\":false},{\"attName\":\"fue\",\"sensitive\":false},{\"attName\":\"sch\",\"sensitive\":false}]";
-        List<JSONObject> arr = JSON.parseArray(li, JSONObject.class);
-
-        bn.getGBN(arr);
+//        Bayes bn = new Bayes("home");
+//        List<DataSegment> test= new ArrayList<>();
+//        test.add(new DataSegment(4, 5));
+//        test.add(new DataSegment(2, 3));
+//        test.contains(new DataSegment(2,4));
+//        test.contains(new DataSegment(3,5));
+//
+//        String li = "[{\"attName\":\"fmp\",\"sensitive\":false},{\"attName\":\"emp\",\"sensitive\":true},{\"attName\":\"gen\",\"sensitive\":false},{\"attName\":\"gcs\",\"sensitive\":false},{\"attName\":\"cat\",\"sensitive\":false},{\"attName\":\"fue\",\"sensitive\":false},{\"attName\":\"sch\",\"sensitive\":false}]";
+//        List<JSONObject> arr = JSON.parseArray(li, JSONObject.class);
+//
+//        bn.getGBN(arr);
         // bn.getTest("KNN", null);
+
+
+//        Executor executor = Executors.newFixedThreadPool(10);
+//        Instant start = Instant.now();
+//        for(int i = 0; i < 1000; i++){
+//            final int fi=i;
+//            for(int j = 0; j < 1000; j++){
+//                final int fj=j;
+//                executor.execute(()-> {
+//                    try{
+//                        System.out.println(fi+ ", " + fj);
+//                        if(fi==999 && fj==999){
+//                            Instant end = Instant.now();
+//                            System.out.println("运行时间： " + Duration.between(start, end).toMillis() + "ms");
+//                        }
+//                    }catch(Exception e){
+//                    }
+//                });
+//            }
+//        }
+
     }
 }
 
