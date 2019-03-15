@@ -1319,9 +1319,10 @@ public class Bayes {
 
             /* split the numeric data */
             List<String> attributeValues = new ArrayList<>();
-            attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(splitPoint.get(0))) + "]");
+            List<String> attributeValues = new ArrayList<>();
+            attributeValues.add("[" + integerTrimEndZero(df.format(minValue)) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(0))) + "]");
             for(int i = 0, size = splitPoint.size()-1; i < size; i++){
-                String category = "(" + integerTrimEndZero(df.format(minValue + splitPoint.get(i))) + "~" + integerTrimEndZero(df.format(splitPoint.get(i+1))) + "]";
+                String category = "(" + integerTrimEndZero(df.format(minValue + splitPoint.get(i))) + "~" + integerTrimEndZero(df.format(minValue + splitPoint.get(i+1))) + "]";
                 attributeValues.add(category);
             }
             attributeValues.add("(" + integerTrimEndZero(df.format(minValue + splitPoint.get(splitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
