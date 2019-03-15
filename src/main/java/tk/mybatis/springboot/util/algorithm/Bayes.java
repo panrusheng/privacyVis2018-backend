@@ -335,6 +335,7 @@ public class Bayes {
                     String att = attEvent[0];
                     String event = attEvent[1];
                     String type = this.attDescription.getJSONObject(att).getString("type");
+                    Attribute attributeOriginal = this.originalData.attribute(att);
                     if(instance.stringValue(this.data.attribute(att)).equals(event)){
                         if(!this.allAttSensitivity.get(att)) {
                             JSONObject recordDatum  = new JSONObject();
@@ -342,7 +343,7 @@ public class Bayes {
                             if(type.equals("categorical")) {
                                 recordDatum.put("value", event);
                             } else{
-                                recordDatum.put("value", originalInstance.value(this.originalData.attribute(att)));
+                                recordDatum.put("value", originalInstance.value(attributeOriginal));
                             }
                             recordDatum.put("utility", this.utilityMap.get(att));
                             recordData.add(recordDatum);
@@ -1188,7 +1189,7 @@ public class Bayes {
 
         this.data = new Instances(this.originalData);
         this.attMinMax.forEach((String attName, double[] value)->{
-            Attribute numericAttribute = this.originalData.attribute(attName);
+            Attribute numericAttribute = this.data.attribute(attName);
             Boolean isInt = false;
             List<Integer> _groupList;
             double minValue = value[0];
@@ -1427,9 +1428,9 @@ public class Bayes {
                     int trimCnt = triItem.getIntValue("oriV") - triItem.getIntValue("triV");
 
                     List<Integer> targetIndice = new ArrayList<>();
-                    for (int idx = 0; idx < originalData.numInstances(); ++idx) {
+                    for (int idx = 0; idx < this.originalData.numInstances(); ++idx) {
                         if (result.instance(idx).isMissing(resAttr)) continue;
-                        double oriInsValue = originalData.instance(idx).value(oriAttribute);
+                        double oriInsValue = this.originalData.instance(idx).value(oriAttribute);
                         if (((j == 0 && oriInsValue == rMin) || oriInsValue > rMin) && oriInsValue <= rMax) {
                             targetIndice.add(idx);
                         }
