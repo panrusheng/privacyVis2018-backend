@@ -1554,6 +1554,7 @@ public class Bayes {
                     JSONObject probabilities = new JSONObject();
                     probabilities.put("eventLists", normalEventSet);
                     probabilities.put("cor", correlationValue);
+                    probabilities.put("freq", tuple.getT0());
                     probabilityList.add(probabilities);
                 });
                 probabilityList.sort((o1, o2) -> {
@@ -1592,26 +1593,6 @@ public class Bayes {
 //
 //        bn.getGBN(arr);
         // bn.getTest("KNN", null);
-
-
-//        Executor executor = Executors.newFixedThreadPool(10);
-//        Instant start = Instant.now();
-//        for(int i = 0; i < 1000; i++){
-//            final int fi=i;
-//            for(int j = 0; j < 1000; j++){
-//                final int fj=j;
-//                executor.execute(()-> {
-//                    try{
-//                        System.out.println(fi+ ", " + fj);
-//                        if(fi==999 && fj==999){
-//                            Instant end = Instant.now();
-//                            System.out.println("运行时间： " + Duration.between(start, end).toMillis() + "ms");
-//                        }
-//                    }catch(Exception e){
-//                    }
-//                });
-//            }
-//        }
 
     }
 }
