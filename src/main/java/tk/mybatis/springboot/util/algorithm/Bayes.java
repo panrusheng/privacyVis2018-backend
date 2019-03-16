@@ -155,7 +155,7 @@ public class Bayes {
     }
 
     public Bayes(){
-        this("user");
+        this("graduate");
     }
 
     public Bayes(String datasetName){
@@ -611,7 +611,7 @@ public class Bayes {
     private void initAttDescription(String datasetName){
         this.attDescription = new JSONObject();
         switch (datasetName){
-            case "user":{
+            case "graduate":{
                 this.attDescription.put("wei" ,  JSON.parseObject("{\"description\" : \"Data adjustment factor\", \"type\": \"numerical\"}"));
                 this.attDescription.put("gen" ,  JSON.parseObject("{\"description\" : \"gender\", \"type\": \"categorical\"}"));
                 this.attDescription.put("cat" ,  JSON.parseObject("{\"description\" : \"Whether he or she is a Catholic believer?\", \"type\": \"categorical\"}"));

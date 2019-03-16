@@ -39,7 +39,7 @@ public class UserController {
         if (dataset != null) {
             bn = new Bayes(dataset);
         } else {
-            bn = new Bayes("user");
+            bn = new Bayes("graduate");
         }
         
         JSONObject response = new JSONObject();
