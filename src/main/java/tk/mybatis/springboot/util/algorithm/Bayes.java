@@ -832,7 +832,7 @@ public class Bayes {
 
 //                            for (int a = 0; a < numInstances; ++a) {
 //                                Instance instance = this.data.instance(a);
-                            this.data.parallelStream().forEach(instance -> {
+                            this.data.forEach(instance -> {
 
                                 if (instance.stringValue(this.data.attribute(attParent)).equals(_valParent)) {
                                     cpt2_p[0]++;
