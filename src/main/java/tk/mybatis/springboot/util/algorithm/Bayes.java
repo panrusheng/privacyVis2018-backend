@@ -454,19 +454,28 @@ public class Bayes {
                         for(Object _record : records){
                             JSONObject record = JSONObject.parseObject(_record.toString());
                             Instance originalInstance = this.originalData.instance(record.getIntValue("id"));
-                            double value = originalInstance.value(this.originalData.attribute(deleteAttName));
                             double minValue = this.attMinMax.get(deleteAttName)[0];
                             double split = this.attMinMax.get(deleteAttName)[2];
+                            double instanceValue = originalInstance.value(this.originalData.attribute(deleteAttName));
                             int groupIndex = 0;
-                            for(; groupIndex < GROUP_NUM; groupIndex++){
-                                if(value <= minValue + split * groupIndex){
+                            int groupNum = this.attGroupList.get(deleteAttName).getT0().size();
+                            boolean finalIsInt = this.attGroupList.get(deleteAttName).getT1();
+                            for(; groupIndex < groupNum; groupIndex++){
+                                double ceilValue;
+                                if(finalIsInt){
+                                    ceilValue = (int)(minValue+split*groupIndex);
+                                } else {
+                                    ceilValue = minValue+split*groupIndex;
+                                }
+                                if(instanceValue <= ceilValue){
                                     break;
                                 }
                             }
-                            if(groupIndex == 0){
-                                groupIndex ++;
+                            if(groupIndex == groupNum){
+                                groupIndex--;
                             }
-                            numericEventCntMap.get(deleteAttName)[groupIndex-1]--;
+
+                            numericEventCntMap.get(deleteAttName)[groupIndex]--;
                         }
                     }
                 }
@@ -486,19 +495,28 @@ public class Bayes {
                             for(Object _id : selection){
                                 Integer id = Integer.parseInt(_id.toString());
                                 Instance originalInstance = this.originalData.instance(id);
-                                double value = originalInstance.value(this.originalData.attribute(deleteAttName));
                                 double minValue = this.attMinMax.get(deleteAttName)[0];
                                 double split = this.attMinMax.get(deleteAttName)[2];
+                                double instanceValue = originalInstance.value(this.originalData.attribute(deleteAttName));
                                 int groupIndex = 0;
-                                for(; groupIndex < GROUP_NUM; groupIndex++){
-                                    if(value <= minValue + split * groupIndex){
+                                int groupNum = this.attGroupList.get(deleteAttName).getT0().size();
+                                boolean finalIsInt = this.attGroupList.get(deleteAttName).getT1();
+                                for(; groupIndex < groupNum; groupIndex++){
+                                    double ceilValue;
+                                    if(finalIsInt){
+                                        ceilValue = (int)(minValue+split*groupIndex);
+                                    } else {
+                                        ceilValue = minValue+split*groupIndex;
+                                    }
+                                    if(instanceValue <= ceilValue){
                                         break;
                                     }
                                 }
-                                if(groupIndex == 0){
-                                    groupIndex ++;
+                                if(groupIndex == groupNum){
+                                    groupIndex--;
                                 }
-                                numericEventCntMap.get(deleteAttName)[groupIndex-1]--;
+
+                                numericEventCntMap.get(deleteAttName)[groupIndex]--;
                             }
                         }
                     }
