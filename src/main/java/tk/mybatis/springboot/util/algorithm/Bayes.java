@@ -561,7 +561,7 @@ public class Bayes {
                             minRate = rate;
                         }
                     }
-                    for(int i = 0; i < GROUP_NUM; i++){
+                    for(int i = 0; i < oriGroupList.size(); i++){
                         JSONObject data = new JSONObject();
                         int oriV = oriGroupList.get(i);
                         int curV = curGroupList[i];
