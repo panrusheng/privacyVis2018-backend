@@ -1092,7 +1092,7 @@ public class Bayes {
         Arrays.fill(denominator, 0.0);
 
 //        for (Instance instance : this.data) {
-        this.data.parallelStream().forEach(instance -> {
+        this.data.forEach(instance -> {
             for(int i = 0; i < numSensitiveEvents; i++){
                 String sensitiveEvent = sensitiveEvents.get(i);
                 Integer sensitiveEventNo = this.nodesMap.get(sensitiveEvent);
@@ -1206,7 +1206,7 @@ public class Bayes {
 //            for (int i = 0, numInstance = this.originalData.numInstances(); i < numInstance; i++) {
 //                Instance instance = this.originalData.instance(i);
             Attribute attributeoriginal = this.originalData.attribute(attName);
-            this.originalData.parallelStream().forEach(instance -> {
+            this.originalData.forEach(instance -> {
                 double attEventValue = instance.value(attributeoriginal);
                 if (attEventValue < value[0]) {
                     value[0] = attEventValue;
@@ -1240,7 +1240,7 @@ public class Bayes {
 //            for(int i = 0, numInstance =  this.data.numInstances(); i < numInstance; i++) {
 //                Instance instance =  this.data.instance(i);
             final boolean finalIsInt = isInt;
-            this.data.parallelStream().forEach(instance -> {
+            this.data.forEach(instance -> {
                 double instanceValue = instance.value(numericAttribute);
                 int index = 0;
                 for(; index < groupNum; index++){
