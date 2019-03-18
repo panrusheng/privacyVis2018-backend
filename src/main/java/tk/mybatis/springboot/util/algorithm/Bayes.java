@@ -346,7 +346,7 @@ public class Bayes {
                             JSONObject recordDatum  = new JSONObject();
                             recordDatum.put("attName", att);
                             if(type.equals("categorical")) {
-                            recordDatum.put("value", event);
+                            recordDatum.put("value", originalInstance.stringValue(attributeOriginal));
                         } else{
                             recordDatum.put("value", originalInstance.value(attributeOriginal));
                         }
@@ -363,7 +363,7 @@ public class Bayes {
                         JSONObject recordDatum  = new JSONObject();
                         recordDatum.put("attName", att);
                         if(type.equals("categorical")) {
-                            recordDatum.put("value", instance.stringValue(this.data.attribute(att)));
+                            recordDatum.put("value", originalInstance.stringValue(this.originalData.attribute(att)));
                         } else{
                             recordDatum.put("value", originalInstance.value(this.originalData.attribute(att)));
                         }
