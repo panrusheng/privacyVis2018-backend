@@ -565,26 +565,18 @@ public class Bayes {
                     range.add(this.attMinMax.get(attName)[1]);
                     result.put("range", range);
                     JSONArray dataList = new JSONArray();
-                    double minRate = Double.POSITIVE_INFINITY;
+                    double minRate = 1;
                     List<Integer> oriGroupList = this.attGroupList.get(attName).getT0();
                     int[] curGroupList = numericEventCntMap.get(attName);
-//                    Enumeration e = this.data.attribute(attName).enumerateValues();
-//                    while(e.hasMoreElements()){
-//                        String category = (String)e.nextElement();
-//                        String eventName = attName+": "+category;
-//                        int oriV = eventCntMap.get(eventName).get(0);
-//                        int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
-//                        double rate = (double)curV / oriV;
-//                        if(rate < minRate){
-//                            minRate = rate;
-//                        }
-//                    }
-                    for (int i = 0; i < oriGroupList.size(); ++i) {
-                        int oriV = oriGroupList.get(i);
-                        int curV = curGroupList[i];
-                        if (oriV == 0) continue;
+                    Enumeration e = this.data.attribute(attName).enumerateValues();
+                    while(e.hasMoreElements()){
+                        String category = (String)e.nextElement();
+                        String eventName = attName+": "+category;
+                        int oriV = eventCntMap.get(eventName).get(0);
+                        int curV = eventCntMap.get(eventName).get(eventCntMap.get(eventName).size()-1);
+                        if (oriV == 0 || curV == 0) continue;
                         double rate = (double)curV / oriV;
-                        if (rate < minRate) {
+                        if(rate < minRate){
                             minRate = rate;
                         }
                     }
