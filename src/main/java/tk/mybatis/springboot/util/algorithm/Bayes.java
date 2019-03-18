@@ -252,7 +252,7 @@ public class Bayes {
                     double value = instanceOrignal.value(attributeOriginal);
                     int index = 0, size = newSplitPoint.size();
                     for(; index < size; index++){
-                        if(value <= newSplitPoint.get(index)){
+                        if(value <= newSplitPoint.get(index) + minValue){
                             break;
                         }
                     }
