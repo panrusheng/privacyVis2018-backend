@@ -3,8 +3,8 @@ import codecs
 import random
 
 data = linecache.getlines("./home.arff")
-result0 = codecs.open('./home_0'+'.arff', 'w', 'utf-8')
-result1 = codecs.open('./home_1'+'.arff', 'w', 'utf-8')
+result0 = codecs.open('./home1'+'.arff', 'w', 'utf-8')
+result1 = codecs.open('./home2'+'.arff', 'w', 'utf-8')
 
 cnt = 0
 size = 10000
