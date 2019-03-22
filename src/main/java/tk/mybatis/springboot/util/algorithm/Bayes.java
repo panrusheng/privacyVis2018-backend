@@ -712,7 +712,7 @@ public class Bayes {
                 this.attDescription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
                 this.attDescription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
             } break;
-            case "home": {
+            case "home": case "home1": case "home2": {
                 this.attDescription.put("claim3years" ,  JSON.parseObject("{\"description\" : \"Whether there was loss in last 3 years\", \"type\": \"categorical\"}"));
                 this.attDescription.put("empStatus" ,  JSON.parseObject("{\"description\" : \"Client's professional status\", \"type\": \"categorical\"}"));
                 this.attDescription.put("busUse" ,  JSON.parseObject("{\"description\" : \"Commercial use indicator\", \"type\": \"categorical\"}"));
@@ -1361,7 +1361,8 @@ public class Bayes {
 
         int[] numAttributes = {this.originalData.numAttributes()};
         int[] testNumAttributes = {this.testOriginalData.numAttributes()};
-
+        this.data = new Instances(this.originalData);
+        this.testData = new Instances(this.testOriginalData);
         this.attGroupList.forEach((String attName, Tuple<List<Integer>, Boolean> groupList)->{
             double minValue = this.attMinMax.get(attName)[0];
             double maxValue = this.attMinMax.get(attName)[1];
@@ -1442,8 +1443,6 @@ public class Bayes {
             }
             attributeValues.add("(" + integerTrimEndZero(df.format(splitPoint.get(splitPoint.size()-1))) + "~" + integerTrimEndZero(df.format(maxValue)) + "]");
             Attribute categoryAttribute = new Attribute("_"+attName, attributeValues);
-            this.data = new Instances(this.originalData);
-            this.testData = new Instances(this.testOriginalData);
             splitNumericData("train", attName, numAttributes, splitPoint, categoryAttribute);
             splitNumericData("test", attName, testNumAttributes, splitPoint, categoryAttribute);
         });
