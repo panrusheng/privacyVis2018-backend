@@ -1009,7 +1009,7 @@ public class Bayes {
                         JSONObject scheme = new JSONObject();
                         double utilityLoss = 0.0;
                         for(String event : deleteEvents){
-                            utilityLoss += this.utilityMap.get(event.split(": ")[0]) * (numInstances - (this.priorMap.get(event)))/numInstances;
+                            utilityLoss += this.utilityMap.get(event.split(": ")[0]) * (numInstances - (this.testPriorMap.get(event)))/numInstances;
                         }
                         scheme.put("dL", deleteEvents.stream().map(this.nodesMap::get).collect(Collectors.toList()));
                         scheme.put("uL", utilityLoss);
