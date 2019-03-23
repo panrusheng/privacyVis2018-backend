@@ -153,6 +153,7 @@ public class Bayes {
     private List<JSONObject> recommendationList;
     private JSONArray recommendationTrimResult;
     private List<JSONObject> selectionOption = new ArrayList<>();
+    public boolean statistic;
 
     public void setRiskLimit(double riskLimit){
         this.riskLimit = riskLimit;
@@ -163,6 +164,7 @@ public class Bayes {
     }
 
     public Bayes(String datasetName){
+        this.statistic = false;
         initOriginalData(datasetName);
         initAttDescription(datasetName);
     }
@@ -464,6 +466,9 @@ public class Bayes {
         return JSONArray.parseArray(JSON.toJSONString(this.recommendationList)).toJSONString();
     }
 
+    public List<JSONObject> getRecommendationList(){
+        return this.recommendationList;
+    }
     public String getResult(List<JSONObject> options){
         this.selectionOption = options;
         JSONArray results = new JSONArray();
@@ -712,7 +717,9 @@ public class Bayes {
                 this.attDescription.put("he" ,  JSON.parseObject("{\"description\" : \"How many month he or she pursue a higher education within six years?\", \"type\": \"numerical\"}"));
                 this.attDescription.put("ascc" ,  JSON.parseObject("{\"description\" : \"How many month he or she keep at school within six years?\", \"type\": \"numerical\"}"));
             } break;
-            case "home": case "home1": case "home2": {
+            case "home": case "home1": case "home2":
+            case "home_500": case "home_1000": case "home_5000":
+            case "home_10000": {
                 this.attDescription.put("claim3years" ,  JSON.parseObject("{\"description\" : \"Whether there was loss in last 3 years\", \"type\": \"categorical\"}"));
                 this.attDescription.put("empStatus" ,  JSON.parseObject("{\"description\" : \"Client's professional status\", \"type\": \"categorical\"}"));
                 this.attDescription.put("busUse" ,  JSON.parseObject("{\"description\" : \"Commercial use indicator\", \"type\": \"categorical\"}"));
@@ -1113,7 +1120,7 @@ public class Bayes {
                         attObj.put("list", this.attGroupList.get(attName).getT0());
                         attObj.put("splitPoints", this.attSplitPoint.get(attName));
                     } catch(Exception e){
-                        e.printStackTrace();
+                        System.out.println(attName);
                     }
                 } break;
                 case "categorical": {
@@ -1121,11 +1128,15 @@ public class Bayes {
                     Map<String, Integer> eventCount = new HashMap<>();
                     for (int i = 0, numInstances = this.data.numInstances(); i < numInstances; i++) {
                         Instance instance = this.data.instance(i);
-                        String attKey = instance.stringValue(attribute);
-                        if(eventCount.containsKey(attKey)){
-                            eventCount.put(attKey, eventCount.get(attKey)+1);
-                        } else {
-                            eventCount.put(attKey, 1);
+                        try{
+                            String attKey = instance.stringValue(attribute);
+                            if(eventCount.containsKey(attKey)){
+                                eventCount.put(attKey, eventCount.get(attKey)+1);
+                            } else {
+                                eventCount.put(attKey, 1);
+                            }
+                        } catch(Exception e){
+                            System.out.println(attName);
                         }
                     }
                     for(String key : eventCount.keySet()){
@@ -1368,60 +1379,63 @@ public class Bayes {
             double maxValue = this.attMinMax.get(attName)[1];
             double split = this.attMinMax.get(attName)[2];
             List<Double> splitPoint = this.attSplitPoint.get(attName);
-            List<Integer> _groupList = groupList.getT0();
-            boolean isInt = groupList.getT1();
-            int len = _groupList.size();
-            int maxNo = 0;
-            int maxG = _groupList.get(maxNo);
-            int minG = _groupList.get(0);
-            for(int i = 1; i < len; i++){
-                if(_groupList.get(i) > maxG){
-                    maxNo = i;
-                    maxG = _groupList.get(i);
-                }
-            }
-            boolean flag = true;
-            for(int i = maxNo - 1; i > -1; i--){
-                if(flag){
-                    if(_groupList.get(i) < maxG * LIMIT_RATE){
-                        if(isInt){
-                            splitPoint.add((double)(int)(minValue+i*split+0.5));
-                        }else {
-                            splitPoint.add(minValue+i*split);
-                        }
-                        minG = _groupList.get(i);
-                        flag = false;
-                    }
-                } else{
-                    if(_groupList.get(i) > minG / LIMIT_RATE){
+            if(!this.statistic) {
+                List<Integer> _groupList = groupList.getT0();
+                boolean isInt = groupList.getT1();
+                int len = _groupList.size();
+                int maxNo = 0;
+                int maxG = _groupList.get(maxNo);
+                int minG = _groupList.get(0);
+                for (int i = 1; i < len; i++) {
+                    if (_groupList.get(i) > maxG) {
+                        maxNo = i;
                         maxG = _groupList.get(i);
-                        flag = true;
                     }
                 }
-            }
-            for(int i = maxNo + 1; i < len; i++){
-                if(flag){
-                    if(_groupList.get(i) < maxG * LIMIT_RATE){
-                        if(isInt){
-                            splitPoint.add((double)(int)(minValue+i*split+0.5));
-                        }else {
-                            splitPoint.add(minValue+i*split);
+                boolean flag = true;
+                for (int i = maxNo - 1; i > -1; i--) {
+                    if (flag) {
+                        if (_groupList.get(i) < maxG * LIMIT_RATE) {
+                            if (isInt) {
+                                splitPoint.add((double) (int) (minValue + i * split + 0.5));
+                            } else {
+                                splitPoint.add(minValue + i * split);
+                            }
+                            minG = _groupList.get(i);
+                            flag = false;
                         }
-                        minG = _groupList.get(i);
-                        flag = false;
-                    }
-                } else{
-                    if(_groupList.get(i) > minG / LIMIT_RATE){
-                        maxG =_groupList.get(i);
-                        flag = true;
+                    } else {
+                        if (_groupList.get(i) > minG / LIMIT_RATE) {
+                            maxG = _groupList.get(i);
+                            flag = true;
+                        }
                     }
                 }
+                for (int i = maxNo + 1; i < len; i++) {
+                    if (flag) {
+                        if (_groupList.get(i) < maxG * LIMIT_RATE) {
+                            if (isInt) {
+                                splitPoint.add((double) (int) (minValue + i * split + 0.5));
+                            } else {
+                                splitPoint.add(minValue + i * split);
+                            }
+                            minG = _groupList.get(i);
+                            flag = false;
+                        }
+                    } else {
+                        if (_groupList.get(i) > minG / LIMIT_RATE) {
+                            maxG = _groupList.get(i);
+                            flag = true;
+                        }
+                    }
+                }
+                splitPoint.sort(Comparator.naturalOrder());
             }
-            splitPoint.sort(Comparator.naturalOrder());
             Attribute numericAttribute = this.originalData.attribute(attName);
             if(splitPoint.size() == 0) { // 2分点(中位数)
                 Map<Double, Integer> eventCount = getNumericEventCount(numericAttribute);
-                Set<Double> sortedKeySet = new TreeSet<>(Comparator.naturalOrder());
+                List<Double> sortedKeySet = new ArrayList<>(eventCount.keySet());
+                sortedKeySet.sort(Comparator.naturalOrder());
                 int cnt = 0;
                 Iterator<Double> it = sortedKeySet.iterator();
                 while(it.hasNext()){
@@ -1708,19 +1722,36 @@ public class Bayes {
      * @param args
      */
     public static void main(String[] args) {
-//        Bayes bn = new Bayes("home");
-//        List<DataSegment> test= new ArrayList<>();
-//        test.add(new DataSegment(4, 5));
-//        test.add(new DataSegment(2, 3));
-//        test.contains(new DataSegment(2,4));
-//        test.contains(new DataSegment(3,5));
-//
-//        String li = "[{\"attName\":\"fmp\",\"sensitive\":false},{\"attName\":\"emp\",\"sensitive\":true},{\"attName\":\"gen\",\"sensitive\":false},{\"attName\":\"gcs\",\"sensitive\":false},{\"attName\":\"cat\",\"sensitive\":false},{\"attName\":\"fue\",\"sensitive\":false},{\"attName\":\"sch\",\"sensitive\":false}]";
-//        List<JSONObject> arr = JSON.parseArray(li, JSONObject.class);
-//
-//        bn.getGBN(arr);
-        // bn.getTest("KNN", null);
 
+        List<Integer> numList = Arrays.asList(500,1000,5000,10000);
+        List<String> selectedAttsList = new ArrayList<>();
+        selectedAttsList.add("[{\"attName\":\"riskRate\",\"sensitive\":false},{\"attName\":\"unocc\",\"sensitive\":true},{\"attName\":\"lastPrem\",\"sensitive\":false},{\"attName\":\"specPrem\",\"sensitive\":false},{\"attName\":\"sex\",\"sensitive\":false}]");
+        selectedAttsList.add("[{\"attName\":\"riskRate\",\"sensitive\":false},{\"attName\":\"unocc\",\"sensitive\":true},{\"attName\":\"lastPrem\",\"sensitive\":false},{\"attName\":\"specPrem\",\"sensitive\":false},{\"attName\":\"sex\",\"sensitive\":false}," +
+                "{\"attName\":\"claim3years\",\"sensitive\":true},{\"attName\":\"yearBuild\",\"sensitive\":false},{\"attName\":\"lock\",\"sensitive\":false},{\"attName\":\"alarm\",\"sensitive\":false},{\"attName\":\"payment\",\"sensitive\":false}]");
+        selectedAttsList.add("[{\"attName\":\"riskRate\",\"sensitive\":false},{\"attName\":\"unocc\",\"sensitive\":true},{\"attName\":\"lastPrem\",\"sensitive\":false},{\"attName\":\"specPrem\",\"sensitive\":false},{\"attName\":\"sex\",\"sensitive\":false}," +
+                "{\"attName\":\"claim3years\",\"sensitive\":true},{\"attName\":\"yearBuild\",\"sensitive\":false},{\"attName\":\"lock\",\"sensitive\":false},{\"attName\":\"alarm\",\"sensitive\":false},{\"attName\":\"payment\",\"sensitive\":false}," +
+                "{\"attName\":\"busUse\",\"sensitive\":false},{\"attName\":\"birthYear\",\"sensitive\":true},{\"attName\":\"polStatus\",\"sensitive\":false},{\"attName\":\"flood\",\"sensitive\":false},{\"attName\":\"occStatus\",\"sensitive\":false}]");
+
+        for(int i = 0; i < 10; i++){
+            System.out.println(i+"-----------------------------------");
+            numList.parallelStream().forEach(size->{
+                selectedAttsList.parallelStream().forEach(selectedAtts->{
+                    Instant start, end;
+                    Bayes bn = new Bayes("home_"+size);
+                    bn.statistic = true;
+                    List<JSONObject> selectedAtt = JSON.parseArray(selectedAtts, JSONObject.class);
+                    bn.setRiskLimit(0.2);
+                    start = Instant.now();
+                    bn.getGBN(selectedAtt);
+                    end = Instant.now();
+                    System.out.println("GBN_"+size+"_"+selectedAtt.size()+":"+Duration.between(start, end).toMillis() + "ms");
+                    start = Instant.now();
+                    bn.getRecommendation(new ArrayList<>(), new ArrayList<>());
+                    end = Instant.now();
+                    System.out.println("Rec_"+size+"_"+selectedAtt.size()+":"+Duration.between(start, end).toMillis() + "ms, "+bn.getRecommendationList().size());
+                });
+            });
+        }
     }
 }
 
