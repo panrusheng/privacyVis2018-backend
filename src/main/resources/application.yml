@@ -5,7 +5,7 @@ mybatis:
 
 server:
   port: 8888
-  address: 10.76.0.172
+  address: 10.76.0.159
 
 #开发配置
 spring:

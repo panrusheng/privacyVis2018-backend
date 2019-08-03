@@ -6,7 +6,6 @@ import com.alibaba.fastjson.JSONObject;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import org.w3c.dom.Attr;
 import weka.classifiers.bayes.BayesNet;
 import weka.classifiers.bayes.net.estimate.SimpleEstimator;
 import weka.classifiers.bayes.net.search.local.*;
@@ -1652,7 +1651,7 @@ public class Bayes {
         int numAllNormalAtts = allNormalAtts.size();
         for(int len = 1; len <= numAllNormalAtts; len++){
             for(int start = 0; start <= numAllNormalAtts - len; start++) {
-                List<String> normalAtts = new ArrayList<>(allNormalAtts.subList(start, start+len-1));
+                List<String> normalAtts = new ArrayList<>(allNormalAtts.subList(start, start+len));
                 for (Instance instance : this.testData) {
                     Set<String> normalEvents = new HashSet<>();
                     normalAtts.forEach(normalAttName ->
