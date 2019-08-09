@@ -427,6 +427,9 @@ public class Bayes {
                     records.add(record);
                 }
             }
+            if(records.size()==0){
+                continue;
+            }
             recommendation.put("records",records);
 
             Tuple<List<JSONObject>, JSONObject> recResult = getRec(group);
@@ -439,7 +442,6 @@ public class Bayes {
 
             JSONObject riskList = recResult.getT1();
             recommendation.put("risk", riskList);
-
             this.recommendationList.add(recommendation);
         }
         this.recommendationList.sort( (o1, o2) -> {
